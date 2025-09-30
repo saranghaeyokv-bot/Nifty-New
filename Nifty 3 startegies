@@ -477,14 +477,14 @@ var bool bb_alert_is_above_upper = false
 var int bb_alert_bar_index = na
 
 // Update alert candle levels
-if alert_above_upper and enable_bb_strategy
+if alert_above_upper and enable_bb_strategy and barstate.isconfirmed
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
     bb_alert_is_above_upper := true
     bb_alert_bar_index := bar_index
 
-if alert_below_lower and enable_bb_strategy
+if alert_below_lower and enable_bb_strategy and barstate.isconfirmed
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
@@ -800,7 +800,7 @@ if tbh_buy_condition or tbh_sell_condition
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // Generate BB entry signals with IMPROVED SL LOGIC
-if bb_sell_entry and not bb_in_trade
+if bb_sell_entry and not bb_in_trade and barstate.isconfirmed
     bb_in_trade := true
     bb_trade_type := "SELL"
     bb_entry_price := normal_close
@@ -820,7 +820,7 @@ if bb_sell_entry and not bb_in_trade
     bb_entry_bar_index := bar_index
     bb_waiting_for_entry := false
 
-if bb_buy_entry and not bb_in_trade
+if bb_buy_entry and not bb_in_trade and barstate.isconfirmed
     bb_in_trade := true
     bb_trade_type := "BUY"
     bb_entry_price := normal_close
@@ -846,7 +846,7 @@ if bb_waiting_for_entry and bar_index > bb_alert_bar_index + 5
 
 // Breakout Entry Logic
 // Breakout Entry Logic
-if bullish_breakout and not breakout_in_trade
+if bullish_breakout and not breakout_in_trade and barstate.isconfirmed
     breakout_in_trade := true
     breakout_trade_type := "BUY"
     breakout_entry_price := normal_close
@@ -859,7 +859,7 @@ if bullish_breakout and not breakout_in_trade
     else if breakout_sl_type == "Entry Candle Low"
         breakout_stop_loss := breakout_entry_candle_low - entry_candle_buffer
     
-if bearish_breakdown and not breakout_in_trade
+if bearish_breakdown and not breakout_in_trade and barstate.isconfirmed
     breakout_in_trade := true
     breakout_trade_type := "SELL"
     breakout_entry_price := normal_close
@@ -882,7 +882,7 @@ if breakout_in_trade and breakout_sl_type == "ATR Trailing"
             breakout_stop_loss := TS
 
 // TBH Entry Logic
-if tbh_buy_condition and not tbh_in_trade
+if tbh_buy_condition and not tbh_in_trade and barstate.isconfirmed
     tbh_in_trade := true
     tbh_trade_type := "BUY"
     tbh_entry_price := normal_close
@@ -907,7 +907,7 @@ if tbh_buy_condition and not tbh_in_trade
     // Start with initial SL
     tbh_current_sl := tbh_initial_sl
 
-if tbh_sell_condition and not tbh_in_trade
+if tbh_sell_condition and not tbh_in_trade and barstate.isconfirmed
     tbh_in_trade := true
     tbh_trade_type := "SELL"
     tbh_entry_price := normal_close
@@ -936,7 +936,7 @@ if tbh_sell_condition and not tbh_in_trade
 // TBH DUAL MODE TRAILING MANAGEMENT - FIXED TP OR PURE TRAILING
 // ═══════════════════════════════════════════════════════════════════════════════════
 
-if tbh_in_trade and bar_index > tbh_entry_bar_index and not tbh_315_exit
+if tbh_in_trade and bar_index > tbh_entry_bar_index and not tbh_315_exit and barstate.isconfirmed
     
     if tbh_using_fixed_tp
         // FIXED TP MODE - Traditional TP/SL logic (no trailing)
@@ -1045,7 +1045,7 @@ if bb_in_trade and isAfter315PM()
 
 // Only check TP/SL on candles AFTER entry candle - Using normal OHLC for calculations
 // Only check TP/SL on candles AFTER entry candle
-if bb_in_trade and bar_index > bb_entry_bar_index and not bb_315_exit
+if bb_in_trade and bar_index > bb_entry_bar_index and barstate.isconfirmed and not bb_315_exit
     if bb_trade_type == "BUY"
         if normal_low <= bb_stop_loss
             bb_sl_hit := true
@@ -1073,7 +1073,7 @@ if breakout_in_trade and isAfter315PM()
     breakout_trade_points_tp := breakout_trade_type == "BUY" ? normal_close - breakout_entry_price : breakout_entry_price - normal_close
 
 // Breakout Trade Exit Logic - Using normal OHLC for calculations
-if breakout_in_trade and bar_index > breakout_entry_bar_index and not breakout_315_exit
+if breakout_in_trade and bar_index > breakout_entry_bar_index and barstate.isconfirmed and not breakout_315_exit
     
     // Auto TP at 3:15 PM
     if is_auto_tp_time
