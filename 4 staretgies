@@ -932,12 +932,11 @@ swing_bar_is_red = swing_plotColor == color.red
 var int swing_consecutive_color_count = 0
 swing_bar_is_lime_or_red = swing_bar_is_lime or swing_bar_is_red
 
-swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and enable_swing_strategy and isSwingBiasAllowedForBuy())
+swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isSwingBiasAllowedForBuy())
 
-swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and enable_swing_strategy and isSwingBiasAllowedForSell())
-
-swing_hat_buy_signal = swing_buy_signal_condition
-swing_hat_sell_signal = swing_sell_signal_condition
+swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and isSwingBiasAllowedForSell())
+swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed and swing_first_n_check
+swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and swing_first_n_check
 
 // Trade state variables
 var bool swing_in_trade = false
@@ -986,6 +985,15 @@ if swing_in_trade
         swing_star_count_since_entry += 1
 
 swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_or_red[1] ? swing_consecutive_color_count[1] + 1 : 1) : 0
+
+
+// Entry conditions check for Swing - matching standalone logic
+swing_entry_allowed = enable_swing_strategy and not swing_in_trade
+
+// Apply first N colored entry filter if enabled
+swing_first_n_check = true
+if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_first_n_colored_bars
+    swing_first_n_check := false
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP)
@@ -1065,6 +1073,16 @@ bb_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (
 tbh_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
 breakout_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
 
+
+// Entry conditions check for Swing - matching standalone logic
+swing_entry_allowed = enable_swing_strategy and not swing_in_trade
+
+// Apply first N colored entry filter if enabled
+swing_first_n_check = true
+if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_first_n_colored_bars
+    swing_first_n_check := false
+
+
 // SWING signals are ALWAYS ALLOWED (no overlap filter, no 3:15 exit)
 swing_signal_allowed = true
 
@@ -1075,8 +1093,8 @@ bb_sell_entry = bb_sell_base and bb_signal_allowed
 bb_buy_entry = bb_buy_base and bb_signal_allowed
 tbh_buy_condition = tbh_buy_condition_base and tbh_signal_allowed
 tbh_sell_condition = tbh_sell_condition_base and tbh_signal_allowed
-swing_buy_entry = swing_hat_buy_signal and swing_signal_allowed
-swing_sell_entry = swing_hat_sell_signal and swing_signal_allowed
+swing_buy_entry = swing_hat_buy_signal and swing_signal_allowed and enable_swing_strategy
+swing_sell_entry = swing_hat_sell_signal and swing_signal_allowed and enable_swing_strategy
 
 // Update signal tracking flags
 if bullish_breakout or bearish_breakdown
