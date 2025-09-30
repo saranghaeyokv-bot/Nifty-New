@@ -1074,13 +1074,6 @@ tbh_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or 
 breakout_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
 
 
-// Entry conditions check for Swing - matching standalone logic
-swing_entry_allowed = enable_swing_strategy and not swing_in_trade
-
-// Apply first N colored entry filter if enabled
-swing_first_n_check = true
-if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_first_n_colored_bars
-    swing_first_n_check := false
 
 
 // SWING signals are ALWAYS ALLOWED (no overlap filter, no 3:15 exit)
