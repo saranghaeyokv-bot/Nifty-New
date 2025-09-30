@@ -926,6 +926,16 @@ swing_vol_filter = volume > (swing_vol_ma * swing_volume_multiplier)
 swing_is_squeeze_bar = swing_high_squeeze or swing_low_squeeze
 swing_is_normal_bar = not swing_is_squeeze_bar
 
+
+// Entry conditions check for Swing - matching standalone logic
+swing_entry_allowed = enable_swing_strategy and not swing_in_trade
+
+// Apply first N colored entry filter if enabled
+swing_first_n_check = true
+if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_first_n_colored_bars
+    swing_first_n_check := false
+
+
 // Helper: What is the real bar color for this bar?
 swing_bar_is_lime = swing_plotColor == color.lime
 swing_bar_is_red = swing_plotColor == color.red
@@ -985,15 +995,6 @@ if swing_in_trade
         swing_star_count_since_entry += 1
 
 swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_or_red[1] ? swing_consecutive_color_count[1] + 1 : 1) : 0
-
-
-// Entry conditions check for Swing - matching standalone logic
-swing_entry_allowed = enable_swing_strategy and not swing_in_trade
-
-// Apply first N colored entry filter if enabled
-swing_first_n_check = true
-if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_first_n_colored_bars
-    swing_first_n_check := false
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP)
