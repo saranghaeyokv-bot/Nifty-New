@@ -1,0 +1,787 @@
+//@version=5
+indicator(title="Enhanced Heikin Ashi Trend Indicator with Performance", shorttitle="HAT-PT", overlay=true)
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Original HAT Inputs
+res = input.timeframe(title="Resolution", defval="")
+colorBars = input.bool(title="Color bars", defval=false)
+show_label_signals = input.bool(false, title="Show Label signals")
+percentSqueeze = input.float(0.2, step=0.1, title="Percent Squeeze")
+
+exit_on_plot_cross = input.bool(true, title="Exit trade on candle close across plot")
+
+// NEW: Toggle for Squeeze and Normal Signal Types
+show_marron_teal_signals = input.bool(true,  title="Show Buy/Sell on Maroon/Teal (Squeeze) Bars")
+show_lime_red_signals    = input.bool(true,  title="Show Buy/Sell on Lime/Red (Normal) Bars")
+
+// Tilson T3 Inputs
+T3Factor = input.float(defval=0.3, minval=0, maxval=100, step=0.1, title="T3 Factor")
+T3Length = input.int(defval=7, minval=1, title="T3 Length")
+
+// Performance Tracking Inputs
+show_performance_table = input.bool(true, title="Show Performance Table")
+table_position = input.string("Top Right", title="Table Position", options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"])
+enable_alerts = input.bool(true, title="Enable Alerts")
+
+// Strategy Options
+use_star_based_exit = input.bool(true, title="Use Star-Based Exit (vs Fixed SL/TP)")
+exit_on_second_star = input.bool(false, title="Exit on 2nd About-to-Exit Star")
+fixed_sl_points = input.float(20.0, title="Fixed SL Points (if not using star-based)")
+fixed_tp_points = input.float(40.0, title="Fixed TP Points (if not using star-based)")
+
+volume_ma_length = input.int(20, title="Volume MA Length")
+volume_multiplier = input.float(1.0, title="Volume Multiplier")
+
+// User Info
+user_login = input.string("tradeapple990-bot", title="User Login")
+
+
+vol_ma = ta.sma(volume, volume_ma_length)
+vol_filter = volume > (vol_ma * volume_multiplier)
+
+// BIAS CONFLUENCE TOGGLE
+enable_bias_confluence = input.bool(true, title="✅ Enable Nifty Bias Confluence", tooltip="Requires BULL bias for BUY signals and BEAR bias for SELL signals", group="Strategy Toggles")
+
+
+enable_first_n_colored_entry = input.bool(true, title="Enable Entry Only on First N Consecutive Color Bars")
+first_n_colored_bars = input.int(3, title="N: Max Number of Consecutive Color Bars for Entry", minval=1, maxval=20)
+
+
+enable_atr_trail_exit = input.bool(true, title="Enable ATR Trailing Stop Exit")
+atr_trail_period = input.int(5, title="ATR Trail Period")
+atr_trail_hhv = input.int(10, title="ATR Trail HHV Period")
+atr_trail_mult = input.float(2.5, title="ATR Trail Multiplier")
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+getTablePosition(pos) =>
+    switch pos
+        "Top Left" => position.top_left
+        "Top Right" => position.top_right
+        "Bottom Left" => position.bottom_left
+        "Bottom Right" => position.bottom_right
+        => position.top_right
+
+calculateWinRate(tp_trades, sl_trades) =>
+    total = tp_trades + sl_trades
+    total > 0 ? math.round((tp_trades / total) * 100, 2) : 0.0
+
+getMonthNameWithYear(month_num, year_num) =>
+    month_name = switch month_num
+        1 => "Jan"
+        2 => "Feb"
+        3 => "Mar"
+        4 => "Apr"
+        5 => "May"
+        6 => "Jun"
+        7 => "Jul"
+        8 => "Aug"
+        9 => "Sep"
+        10 => "Oct"
+        11 => "Nov"
+        12 => "Dec"
+        => "Unknown"
+    month_name + " " + str.tostring(year_num)
+
+getCurrentTimestamp() =>str.tostring(year) + "-" + str.tostring(month, "00") + "-" + str.tostring(dayofmonth, "00") + " " + str.tostring(hour, "00") + ":" + str.tostring(minute, "00") + ":" + str.tostring(second, "00")
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// HEIKIN ASHI TREND CALCULATION
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+T3FactorCalc = T3Factor * 0.10
+
+gd(src, length, factor) => 
+    ta.ema(src, length) * (1 + factor) - ta.ema(ta.ema(src, length), length) * factor
+
+t3(src, length, factor) => 
+    gd(gd(gd(src, length, factor), length, factor), length, factor)
+
+ha_t = ticker.heikinashi(syminfo.tickerid)
+ha_o = request.security(ha_t, res, open)
+ha_c = request.security(ha_t, res, close)
+ha_h = request.security(ha_t, res, high)
+ha_l = request.security(ha_t, res, low)
+
+o2 = t3(ha_o, T3Length, T3FactorCalc)
+c2 = t3(ha_c, T3Length, T3FactorCalc)
+h2 = t3(ha_h, T3Length, T3FactorCalc)
+l2 = t3(ha_l, T3Length, T3FactorCalc)
+
+percentHL = ((o2 - c2) / math.avg(o2, c2)) * 100
+
+high_squeeze = math.abs(percentHL) < percentSqueeze and percentHL > 0
+low_squeeze = math.abs(percentHL) < percentSqueeze and percentHL < 0
+
+crossPlot = o2 < c2 ? l2 : h2
+plotColor = high_squeeze ? color.maroon : low_squeeze ? color.teal : o2 < c2 ? color.lime : color.red
+
+// Signal detection
+green_star = o2 < c2 and (o2[1] >= c2[1])
+red_star = o2 > c2 and (o2[1] <= c2[1])
+
+o2_cross_under_long = ta.crossunder(o2, c2)
+c2_cross_over_short = ta.crossover(o2, c2)
+
+is_green_candle = close > open
+is_red_candle = close < open
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// NIFTY BIAS CONFLUENCE CALCULATION - TOP 20 STOCKS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Bias calculation parameters
+bias_update_frequency = input.int(5, "Bias Update Frequency (minutes)", minval=1, maxval=15, tooltip="Time between bias analysis sessions", group="Bias Confluence")
+bias_change_threshold = input.float(0.05, "Bias Threshold %", minval=0.01, step=0.01, tooltip="Minimum % change to classify as gainer/loser", group="Bias Confluence")
+
+// Configurable bias thresholds
+bias_bull_threshold = input.float(8.0, "BULL Bias Threshold", minval=1.0, maxval=50.0, step=0.5, tooltip="Spread above this value = BULL bias", group="Bias Confluence")
+bias_bear_threshold = input.float(-8.0, "BEAR Bias Threshold", maxval=-1.0, minval=-50.0, step=0.5, tooltip="Spread below this value = BEAR bias", group="Bias Confluence")
+
+// Top 16 Nifty stocks with OFFICIAL WEIGHTAGES (Total: ~66% coverage)
+bias_top16_symbols = array.from("NSE:HDFCBANK", "NSE:ICICIBANK", "NSE:RELIANCE", "NSE:INFY", "NSE:BHARTIARTL", "NSE:LT", "NSE:ITC", "NSE:TCS", "NSE:SBIN", "NSE:AXISBANK", "NSE:KOTAKBANK", "NSE:M&M", "NSE:BAJFINANCE", "NSE:HINDUNILVR", "NSE:BAJAJFINSV", "NSE:ADANIENT")
+bias_top16_weights = array.from(13.11, 9.00, 8.31, 4.78, 4.65, 3.82, 3.45, 2.85, 2.79, 2.70, 2.60, 2.55, 2.14, 2.13, 2.11, 1.97)
+
+// Request security data for top 20 stocks (40 calls total - within Pine Script limit)
+// Stocks 1-10
+bias_stock1_current = request.security("NSE:HDFCBANK", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock1_ref = request.security("NSE:HDFCBANK", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock2_current = request.security("NSE:ICICIBANK", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock2_ref = request.security("NSE:ICICIBANK", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock3_current = request.security("NSE:RELIANCE", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock3_ref = request.security("NSE:RELIANCE", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock4_current = request.security("NSE:INFY", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock4_ref = request.security("NSE:INFY", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock5_current = request.security("NSE:BHARTIARTL", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock5_ref = request.security("NSE:BHARTIARTL", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock6_current = request.security("NSE:LT", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock6_ref = request.security("NSE:LT", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock7_current = request.security("NSE:ITC", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock7_ref = request.security("NSE:ITC", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock8_current = request.security("NSE:TCS", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock8_ref = request.security("NSE:TCS", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock9_current = request.security("NSE:SBIN", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock9_ref = request.security("NSE:SBIN", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock10_current = request.security("NSE:AXISBANK", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock10_ref = request.security("NSE:AXISBANK", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+
+// Stocks 11-20
+bias_stock11_current = request.security("NSE:KOTAKBANK", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock11_ref = request.security("NSE:KOTAKBANK", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock12_current = request.security("NSE:HCLTECH", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock12_ref = request.security("NSE:HCLTECH", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock13_current = request.security("NSE:BAJFINANCE", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock13_ref = request.security("NSE:BAJFINANCE", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock14_current = request.security("NSE:MARUTI", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock14_ref = request.security("NSE:MARUTI", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock15_current = request.security("NSE:ASIANPAINT", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock15_ref = request.security("NSE:ASIANPAINT", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock16_current = request.security("NSE:NESTLEIND", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock16_ref = request.security("NSE:NESTLEIND", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock17_current = request.security("NSE:ULTRACEMCO", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock17_ref = request.security("NSE:ULTRACEMCO", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock18_current = request.security("NSE:TITAN", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock18_ref = request.security("NSE:TITAN", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock19_current = request.security("NSE:WIPRO", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock19_ref = request.security("NSE:WIPRO", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+bias_stock20_current = request.security("NSE:SUNPHARMA", str.tostring(bias_update_frequency), close[0], lookahead=barmerge.lookahead_off)
+bias_stock20_ref = request.security("NSE:SUNPHARMA", str.tostring(bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
+
+
+// Arrays for bias calculation - TOP 16 STOCKS
+bias_current_prices = array.from(bias_stock1_current, bias_stock2_current, bias_stock3_current, bias_stock4_current, bias_stock5_current, bias_stock6_current, bias_stock7_current, bias_stock8_current, bias_stock9_current, bias_stock10_current, bias_stock11_current, bias_stock12_current, bias_stock13_current, bias_stock14_current, bias_stock15_current, bias_stock16_current)
+bias_ref_prices = array.from(bias_stock1_ref, bias_stock2_ref, bias_stock3_ref, bias_stock4_ref, bias_stock5_ref, bias_stock6_ref, bias_stock7_ref, bias_stock8_ref, bias_stock9_ref, bias_stock10_ref, bias_stock11_ref, bias_stock12_ref, bias_stock13_ref, bias_stock14_ref, bias_stock15_ref, bias_stock16_ref)
+
+// Calculate bias with top 20 stocks
+var float bias_gainers_weight = 0.0
+var float bias_losers_weight = 0.0
+var float bias_spread = 0.0
+var string current_nifty_bias = "SIDEWAYS"
+var int bias_gainers_count = 0
+var int bias_losers_count = 0
+var int bias_unchanged_count = 0
+
+// Update bias calculation with configurable thresholds
+if barstate.isconfirmed
+    temp_gainers_weight = 0.0
+    temp_losers_weight = 0.0
+    temp_gainers_count = 0
+    temp_losers_count = 0
+    temp_unchanged_count = 0
+    
+    for i = 0 to 15  // Top 16 stocks
+        weight = array.get(bias_top16_weights, i)
+        stock_current = array.get(bias_current_prices, i)
+        stock_ref = array.get(bias_ref_prices, i)
+        
+        change_pct = stock_ref != 0 and not na(stock_ref) and not na(stock_current) ? 
+                     ((stock_current - stock_ref) / stock_ref) * 100 : 0.0
+        
+        if change_pct > bias_change_threshold
+            temp_gainers_weight += weight
+            temp_gainers_count += 1
+        else if change_pct < -bias_change_threshold
+            temp_losers_weight += weight
+            temp_losers_count += 1
+        else
+            temp_unchanged_count += 1
+    
+    bias_gainers_weight := temp_gainers_weight
+    bias_losers_weight := temp_losers_weight
+    bias_gainers_count := temp_gainers_count
+    bias_losers_count := temp_losers_count
+    bias_unchanged_count := temp_unchanged_count
+    
+    bias_spread := bias_gainers_weight - bias_losers_weight
+    current_nifty_bias := bias_spread > bias_bull_threshold ? "BULL" : bias_spread < bias_bear_threshold ? "BEAR" : "SIDEWAYS"
+
+// Bias confluence functions
+isBiasAllowedForBuy() =>
+    if not enable_bias_confluence
+        true
+    else
+        current_nifty_bias == "BULL"
+
+isBiasAllowedForSell() =>
+    if not enable_bias_confluence
+        true
+    else
+        current_nifty_bias == "BEAR"
+
+
+getBiasSpreadInfo() => (bias_spread > 0 ? "+" + str.tostring(bias_spread, "#.##") : str.tostring(bias_spread, "#.##")) + " (" + str.tostring(bias_gainers_count) + "G/" + str.tostring(bias_losers_count) + "L/" + str.tostring(bias_unchanged_count) + "U)"
+
+
+
+getBiasThresholdInfo() => "Bull>" + str.tostring(bias_bull_threshold, "#.#") + " | Bear<" + str.tostring(bias_bear_threshold, "#.#")
+
+getBiasCoverageInfo() => "Top16: " + str.tostring(math.round(bias_gainers_weight + bias_losers_weight, 1)) + "% coverage"
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// TRADE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Trade state variables
+var bool in_trade = false
+var string trade_type = ""
+var float entry_price = 0.0
+var float stop_loss = 0.0
+var float take_profit = 0.0
+var int entry_bar = 0
+var string last_trade_closed = ""
+var int star_count_since_entry = 0
+
+// Dual ATR trailing stop logic (classic trailing, no rolling highest/lowest)
+atr = ta.atr(atr_trail_period)
+long_stop_raw = low - atr_trail_mult * atr
+short_stop_raw = high + atr_trail_mult * atr
+
+var float lower_atr_trail = na
+var float upper_atr_trail = na
+
+// For BUY trades: trail up, never decrease
+if not in_trade or trade_type != "BUY"
+    lower_atr_trail := long_stop_raw
+else
+    lower_atr_trail := math.max(lower_atr_trail[1], long_stop_raw)
+
+// For SELL trades: trail down, never increase
+if not in_trade or trade_type != "SELL"
+    upper_atr_trail := short_stop_raw
+else
+    upper_atr_trail := math.min(upper_atr_trail[1], short_stop_raw)
+
+// Exit flags
+var bool tp_hit_alert = false
+var bool sl_hit_alert = false
+var bool star_exit_alert = false
+
+// Trade points calculation
+var float trade_points_tp = 0.0
+var float trade_points_sl = 0.0
+
+// Star counting for star-based exit
+if in_trade
+    if trade_type == "BUY" and red_star
+        star_count_since_entry += 1
+    else if trade_type == "SELL" and green_star
+        star_count_since_entry += 1
+
+
+// All calculations and assignments first
+is_squeeze_bar = high_squeeze or low_squeeze
+is_normal_bar = not is_squeeze_bar
+
+
+// Helper: What is the real bar color for this bar?
+bar_is_lime = plotColor == color.lime
+bar_is_red  = plotColor == color.red
+var int consecutive_color_count = 0
+bar_is_lime_or_red = bar_is_lime or bar_is_red
+
+
+buy_signal_condition = (((show_lime_red_signals and is_normal_bar and o2 < c2 and close > crossPlot and is_green_candle and vol_filter) or (show_marron_teal_signals and is_squeeze_bar and o2 < c2 and close > crossPlot and is_green_candle and vol_filter)) and not in_trade and (last_trade_closed == "SELL" or last_trade_closed == "") and isBiasAllowedForBuy() and (not enable_first_n_colored_entry or (bar_is_lime and consecutive_color_count <= first_n_colored_bars)))
+sell_signal_condition = (((show_lime_red_signals and is_normal_bar and o2 > c2 and close < crossPlot and is_red_candle and vol_filter) or (show_marron_teal_signals and is_squeeze_bar and o2 > c2 and close < crossPlot and is_red_candle and vol_filter)) and not in_trade and (last_trade_closed == "BUY" or last_trade_closed == "") and isBiasAllowedForSell() and (not enable_first_n_colored_entry or (bar_is_red and consecutive_color_count <= first_n_colored_bars)))
+
+hat_buy_signal  = buy_signal_condition
+hat_sell_signal = sell_signal_condition
+
+
+// ENTRY LOGIC
+if hat_buy_signal
+    in_trade := true
+    trade_type := "BUY"
+    entry_price := close
+    entry_bar := bar_index
+    star_count_since_entry := 0
+    if not use_star_based_exit
+        stop_loss := entry_price - fixed_sl_points
+        take_profit := entry_price + fixed_tp_points
+
+if hat_sell_signal
+    in_trade := true
+    trade_type := "SELL"
+    entry_price := close
+    entry_bar := bar_index
+    star_count_since_entry := 0
+    if not use_star_based_exit
+        stop_loss := entry_price + fixed_sl_points
+        take_profit := entry_price - fixed_tp_points
+
+// ==============================
+// DUAL ATR EXIT LOGIC GOES HERE!
+// ==============================
+if enable_atr_trail_exit and in_trade
+    if trade_type == "BUY" and close < lower_atr_trail
+        exit_price = close
+        if exit_price > entry_price
+            trade_points_tp := exit_price - entry_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := entry_price - exit_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+    if trade_type == "SELL" and close > upper_atr_trail
+        exit_price = close
+        if exit_price < entry_price
+            trade_points_tp := entry_price - exit_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := close - entry_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+
+// STAR-BASED EXIT LOGIC
+if not enable_atr_trail_exit and use_star_based_exit and in_trade
+    exit_stars = exit_on_second_star ? 2 : 1
+    if trade_type == "BUY" and star_count_since_entry >= exit_stars and red_star
+        exit_price = close
+        if exit_price > entry_price
+            trade_points_tp := exit_price - entry_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := entry_price - exit_price
+            sl_hit_alert := true
+        star_exit_alert := true
+        in_trade := false
+        trade_type := ""
+    if trade_type == "SELL" and star_count_since_entry >= exit_stars and green_star
+        exit_price = close
+        if exit_price < entry_price
+            trade_points_tp := entry_price - exit_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := exit_price - entry_price
+            sl_hit_alert := true
+        star_exit_alert := true
+        in_trade := false
+        trade_type := ""
+
+// FIXED SL/TP EXIT LOGIC
+if not enable_atr_trail_exit and in_trade and not use_star_based_exit
+    if trade_type == "BUY"
+        if close <= stop_loss
+            trade_points_sl := entry_price - close
+            sl_hit_alert := true
+            in_trade := false
+            trade_type := ""
+        else if close >= take_profit
+            trade_points_tp := close - entry_price
+            tp_hit_alert := true
+            in_trade := false
+            trade_type := ""
+    else if trade_type == "SELL"
+        if close >= stop_loss
+            trade_points_sl := close - entry_price
+            sl_hit_alert := true
+            in_trade := false
+            trade_type := ""
+        else if close <= take_profit
+            trade_points_tp := entry_price - close
+            tp_hit_alert := true
+            in_trade := false
+            trade_type := "" 
+
+
+
+// ======= Custom Immediate Opposite Color Exit Logic =======
+
+
+
+consecutive_color_count := bar_is_lime_or_red ? (bar_is_lime_or_red[1] ? consecutive_color_count[1] + 1 : 1) : 0
+
+// Exit for Buy (entered on lime): exit on any bar that is NOT lime
+if not enable_atr_trail_exit and in_trade and trade_type == "BUY"
+    if not bar_is_lime
+        exit_price = close
+        // Win or loss?
+        if exit_price > entry_price
+            trade_points_tp := exit_price - entry_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := entry_price - exit_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+
+// Exit for Sell (entered on red): exit on any bar that is NOT red
+if not enable_atr_trail_exit and in_trade and trade_type == "SELL"
+    if not bar_is_red
+        exit_price = close
+        // Win or loss?
+        if exit_price < entry_price
+            trade_points_tp := entry_price - exit_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := exit_price - entry_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+
+
+// Exit on plot cross if toggle is enabled
+if exit_on_plot_cross and not enable_atr_trail_exit and in_trade
+    // For BUY, exit if current close < crossPlot (candle closes below plot)
+    if trade_type == "BUY" and close < crossPlot
+        exit_price = close
+        if exit_price > entry_price
+            trade_points_tp := exit_price - entry_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := entry_price - exit_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+    // For SELL, exit if current close > crossPlot (candle closes above plot)
+    if trade_type == "SELL" and close > crossPlot
+        exit_price = close
+        if exit_price < entry_price
+            trade_points_tp := entry_price - exit_price
+            tp_hit_alert := true
+        else
+            trade_points_sl := close - entry_price
+            sl_hit_alert := true
+        in_trade := false
+        trade_type := ""
+
+
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// PERFORMANCE TRACKING
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Performance tracking arrays
+var trade_months = array.new<int>()
+var trade_years = array.new<int>()
+var trade_was_tp = array.new<bool>()
+var trade_points = array.new<float>()
+
+// Counters
+var int total_tp_count = 0
+var int total_sl_count = 0
+var float total_tp_points = 0.0
+var float total_sl_points = 0.0
+
+// SL Streak tracking
+var int current_sl_streak = 0
+var int max_sl_streak = 0
+var float current_sl_streak_points = 0.0
+var float max_sl_streak_points = 0.0
+
+// Performance Updates
+if tp_hit_alert
+    points_to_add = math.abs(trade_points_tp)
+    
+    array.push(trade_months, month(time))
+    array.push(trade_years, year(time))
+    array.push(trade_was_tp, true)
+    array.push(trade_points, points_to_add)
+    
+    total_tp_count += 1
+    total_tp_points += points_to_add
+    current_sl_streak := 0
+    current_sl_streak_points := 0.0
+
+if sl_hit_alert
+    points_to_add = math.abs(trade_points_sl)
+    
+    array.push(trade_months, month(time))
+    array.push(trade_years, year(time))
+    array.push(trade_was_tp, false)
+    array.push(trade_points, points_to_add)
+    
+    total_sl_count += 1
+    total_sl_points += points_to_add
+    current_sl_streak += 1
+    current_sl_streak_points += points_to_add
+    if current_sl_streak > max_sl_streak
+        max_sl_streak := current_sl_streak
+        max_sl_streak_points := current_sl_streak_points
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// PERFORMANCE TABLE
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+if barstate.islast and show_performance_table
+    current_month = month(time)
+    current_year = year(time)
+    
+    var performanceTable = table.new(getTablePosition(table_position), 14, 15, bgcolor=color.new(color.black, 20), border_width=1)
+    
+    // Header row
+    table.cell(performanceTable, 0, 0, 'Month & Year', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 60))
+    table.cell(performanceTable, 1, 0, 'TP Trades', text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 60))
+    table.cell(performanceTable, 2, 0, 'SL Trades', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 60))
+    table.cell(performanceTable, 3, 0, 'TP Points', text_color=color.white, text_size=size.small, bgcolor=color.new(color.lime, 60))
+    table.cell(performanceTable, 4, 0, 'SL Points', text_color=color.white, text_size=size.small, bgcolor=color.new(color.maroon, 60))
+    table.cell(performanceTable, 5, 0, 'Net Points', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 6, 0, 'Win Rate %', text_color=color.white, text_size=size.small, bgcolor=color.new(color.teal, 60))
+    table.cell(performanceTable, 7, 0, 'Profit Factor', text_color=color.white, text_size=size.small, bgcolor=color.new(color.aqua, 60))
+    table.cell(performanceTable, 8, 0, 'PNL (₹)', text_color=color.white, text_size=size.small, bgcolor=color.new(color.yellow, 60))
+    table.cell(performanceTable, 9, 0, 'Max SL Streak', text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 80))
+    table.cell(performanceTable, 10, 0, 'SL Streak Pts', text_color=color.white, text_size=size.small, bgcolor=color.new(color.maroon, 80))
+    table.cell(performanceTable, 11, 0, 'HAT Trade', text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 60))
+    table.cell(performanceTable, 12, 0, 'T3 Factor', text_color=color.white, text_size=size.small, bgcolor=color.new(color.lime, 60))
+    table.cell(performanceTable, 13, 0, 'Exit Mode', text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 60))
+    
+    grand_tp_trades = 0
+    grand_sl_trades = 0
+    grand_tp_points = 0.0
+    grand_sl_points = 0.0
+    
+    // Display last 12 months
+    for i = 0 to 11
+        row = i + 1
+        
+        target_month = ((current_month - 12 + i) % 12)
+        if target_month <= 0
+            target_month := target_month + 12
+        
+        target_year = target_month > current_month ? current_year - 1 : current_year
+        
+        // Count trades for this month/year
+        month_tp_trades = 0
+        month_sl_trades = 0
+        month_tp_points = 0.0
+        month_sl_points = 0.0
+        
+        if array.size(trade_months) > 0
+            for j = 0 to array.size(trade_months) - 1
+                trade_month = array.get(trade_months, j)
+                trade_year = array.get(trade_years, j)
+                
+                if trade_month == target_month and trade_year == target_year
+                    was_tp = array.get(trade_was_tp, j)
+                    points = array.get(trade_points, j)
+                    
+                    if was_tp
+                        month_tp_trades := month_tp_trades + 1
+                        month_tp_points := month_tp_points + points
+                    else
+                        month_sl_trades := month_sl_trades + 1
+                        month_sl_points := month_sl_points + points
+        
+        // Calculations
+        net_pts = month_tp_points - month_sl_points
+        win_rate = calculateWinRate(month_tp_trades, month_sl_trades)
+        profit_factor = month_sl_points > 0 ? math.round(month_tp_points / month_sl_points, 2) : (month_tp_points > 0 ? 999.99 : 0.0)
+        option_pts = math.round(net_pts * 0.372)
+        pnl = math.round(option_pts * 525)
+        
+        // Update grand totals
+        grand_tp_trades := grand_tp_trades + month_tp_trades
+        grand_sl_trades := grand_sl_trades + month_sl_trades
+        grand_tp_points := grand_tp_points + month_tp_points
+        grand_sl_points := grand_sl_points + month_sl_points
+        
+        month_name_with_year = getMonthNameWithYear(target_month, target_year)
+        
+        // Fill table cells
+        table.cell(performanceTable, 0, row, month_name_with_year, text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 1, row, str.tostring(month_tp_trades), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 2, row, str.tostring(month_sl_trades), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 3, row, str.tostring(math.round(month_tp_points)), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 4, row, str.tostring(math.round(month_sl_points)), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 5, row, str.tostring(math.round(net_pts)), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 6, row, str.tostring(win_rate) + "%", text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 7, row, str.tostring(profit_factor), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 8, row, str.tostring(pnl), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 9, row, str.tostring(0), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 10, row, str.tostring(0), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 11, row, str.tostring(month_tp_trades + month_sl_trades), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 12, row, str.tostring(T3Factor), text_color=color.white, text_size=size.small)
+        table.cell(performanceTable, 13, row, use_star_based_exit ? "STAR" : "FIXED", text_color=color.white, text_size=size.small)
+    
+    // Total row
+    grand_net_pts = grand_tp_points - grand_sl_points
+    grand_win_rate = calculateWinRate(grand_tp_trades, grand_sl_trades)
+    grand_profit_factor = grand_sl_points > 0 ? math.round(grand_tp_points / grand_sl_points, 2) : (grand_tp_points > 0 ? 999.99 : 0.0)
+    grand_option_pts = math.round(grand_net_pts * 0.372)
+    grand_pnl = math.round(grand_option_pts * 525)
+    
+    table.cell(performanceTable, 0, 13, 'TOTAL', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 1, 13, str.tostring(grand_tp_trades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 2, 13, str.tostring(grand_sl_trades), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 3, 13, str.tostring(math.round(grand_tp_points)), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 4, 13, str.tostring(math.round(grand_sl_points)), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 5, 13, str.tostring(math.round(grand_net_pts)), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 6, 13, str.tostring(grand_win_rate) + "%", text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 7, 13, str.tostring(grand_profit_factor), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 8, 13, str.tostring(grand_pnl), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 9, 13, str.tostring(max_sl_streak), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 10, 13, str.tostring(math.round(max_sl_streak_points)), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 11, 13, str.tostring(total_tp_count + total_sl_count), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 12, 13, "T3: " + str.tostring(T3Length), text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 13, 13, use_star_based_exit ? "ENABLED" : "DISABLED", text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    
+    // Strategy Summary Row
+    table.cell(performanceTable, 0, 14, 'HAT-ENHANCED', text_color=color.white, text_size=size.small, bgcolor=color.new(color.gray, 60))
+    table.cell(performanceTable, 1, 14, 'TP: ' + str.tostring(total_tp_count), text_color=color.white, text_size=size.small, bgcolor=color.new(color.green, 60))
+    table.cell(performanceTable, 2, 14, 'SL: ' + str.tostring(total_sl_count), text_color=color.white, text_size=size.small, bgcolor=color.new(color.red, 60))
+    table.cell(performanceTable, 3, 14, 'T3F: ' + str.tostring(T3Factor), text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 60))
+    table.cell(performanceTable, 4, 14, 'T3L: ' + str.tostring(T3Length), text_color=color.white, text_size=size.small, bgcolor=color.new(color.orange, 60))
+    
+    // Status indicators
+    exit_mode_status = use_star_based_exit ? "STAR-EXIT" : "FIXED-EXIT"
+    
+    table.cell(performanceTable, 5, 14, exit_mode_status, text_color=color.white, text_size=size.small, bgcolor=use_star_based_exit ? color.new(color.green, 60) : color.new(color.blue, 60))
+    table.cell(performanceTable, 6, 14, 'SQUEEZE: ' + str.tostring(percentSqueeze), text_color=color.white, text_size=size.small, bgcolor=color.new(color.teal, 60))
+    table.cell(performanceTable, 7, 14, 'HEIKIN-ASHI', text_color=color.white, text_size=size.small, bgcolor=color.new(color.lime, 60))
+    table.cell(performanceTable, 9, 14, user_login, text_color=color.white, text_size=size.small, bgcolor=color.new(color.navy, 60))
+    table.cell(performanceTable, 10, 14, 'TREND-FOLLOW', text_color=color.white, text_size=size.small, bgcolor=color.new(color.purple, 60))
+    table.cell(performanceTable, 11, 14, 'STAR-BASED', text_color=color.white, text_size=size.small, bgcolor=color.new(color.maroon, 60))
+    table.cell(performanceTable, 12, 14, 'HAT-SYSTEM', text_color=color.white, text_size=size.small, bgcolor=color.new(color.lime, 60))
+    table.cell(performanceTable, 13, 14, 'ENHANCED', text_color=color.white, text_size=size.small, bgcolor=color.new(color.aqua, 60))
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// VISUAL PLOTTING
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// Plot HAT stars
+plot(crossPlot, color=plotColor, style=plot.style_cross, linewidth=2, title="HAT Stars")
+
+// Bar coloring
+barcolor(colorBars ? plotColor : na)
+
+
+// Plot ATR bands only when in trade and for correct side
+plot(in_trade and trade_type == "BUY" and enable_atr_trail_exit ? lower_atr_trail : na, 
+     color=color.orange, linewidth=2, title="ATR Lower Trail")
+plot(in_trade and trade_type == "SELL" and enable_atr_trail_exit ? upper_atr_trail : na, 
+     color=color.fuchsia, linewidth=2, title="ATR Upper Trail")
+
+
+// Plot active stop loss and take profit levels when in trade (for fixed mode)
+plot(in_trade and not use_star_based_exit ? stop_loss : na, title="Active Stop Loss", color=color.red, linewidth=2, style=plot.style_linebr)
+plot(in_trade and not use_star_based_exit ? take_profit : na, title="Active Take Profit", color=color.green, linewidth=2, style=plot.style_linebr)
+
+// Entry signals
+plotshape(hat_buy_signal, title='HAT Buy Signal', style=shape.labelup, location=location.belowbar, color=color.green, text='HAT\nBUY', textcolor=color.white, size=size.small)
+plotshape(hat_sell_signal, title='HAT Sell Signal', style=shape.labeldown, location=location.abovebar, color=color.red, text='HAT\nSELL', textcolor=color.white, size=size.small)
+
+// Traditional signals (if show_label_signals is enabled)
+plotshape(o2_cross_under_long and show_label_signals ? close : na, title="Traditional Buy", text="B", location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.white)
+plotshape(c2_cross_over_short and show_label_signals ? close : na, title="Traditional Sell", text="S", location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.white)
+
+// Exit labels
+atr_value = ta.atr(20) * 2
+
+if tp_hit_alert
+    actual_tp_points = math.abs(trade_points_tp)
+    label_y = trade_type == "BUY" ? high + atr_value : low - atr_value
+    label_style = trade_type == "BUY" ? label.style_label_down : label.style_label_up
+    exit_type = use_star_based_exit ? "STAR" : "FIXED"
+    
+    label.new(x=bar_index, y=label_y, text="✅ HAT " + exit_type + " TP +" + str.tostring(math.round(actual_tp_points, 1)) + " pts", 
+              style=label_style, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+
+if sl_hit_alert
+    actual_sl_points = math.abs(trade_points_sl)
+    label_y = trade_type == "BUY" ? low - atr_value : high + atr_value
+    label_style = trade_type == "BUY" ? label.style_label_up : label.style_label_down
+    exit_type = use_star_based_exit ? "STAR" : "FIXED"
+    
+    label.new(x=bar_index, y=label_y, text="❌ HAT " + exit_type + " SL -" + str.tostring(math.round(actual_sl_points, 1)) + " pts", 
+              style=label_style, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
+
+// Background highlighting
+bgcolor(in_trade and trade_type == "BUY" ? color.new(color.green, 95) : in_trade and trade_type == "SELL" ? color.new(color.red, 95) : na, title="Active Trade Background")
+bgcolor(green_star and not in_trade ? color.new(color.green, 90) : na, title="Green Star Signal")
+bgcolor(red_star and not in_trade ? color.new(color.red, 90) : na, title="Red Star Signal")
+
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+if enable_alerts
+    if hat_buy_signal
+        exit_info = use_star_based_exit ? " | Exit Mode: Star-based (exit on red star)" : " | Exit Mode: Fixed SL/TP"
+        alert("HAT BUY SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    
+    if hat_sell_signal
+        exit_info = use_star_based_exit ? " | Exit Mode: Star-based (exit on green star)" : " | Exit Mode: Fixed SL/TP"
+        alert("HAT SELL SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    
+    if tp_hit_alert
+        exit_type = use_star_based_exit ? "STAR-BASED" : "FIXED"
+        alert("HAT TAKE PROFIT (" + exit_type + "): Position closed with profit at " + str.tostring(close, "#.##") + " | Points: +" + str.tostring(math.abs(trade_points_tp), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    
+    if sl_hit_alert
+        exit_type = use_star_based_exit ? "STAR-BASED" : "FIXED"
+        alert("HAT STOP LOSS (" + exit_type + "): Position closed with loss at " + str.tostring(close, "#.##") + " | Points: -" + str.tostring(math.abs(trade_points_sl), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+
+// Alert Conditions
+alertcondition(hat_buy_signal, 'HAT Buy Signal', 'HAT Buy Signal Triggered')
+alertcondition(hat_sell_signal, 'HAT Sell Signal', 'HAT Sell Signal Triggered')
+alertcondition(tp_hit_alert, 'HAT Take Profit', 'HAT Take Profit Hit')
+alertcondition(sl_hit_alert, 'HAT Stop Loss', 'HAT Stop Loss Hit')
+
+// Traditional alert conditions (for compatibility)
+alertcondition(o2_cross_under_long, title='Traditional Buy', message='Traditional Buy Alert')
+alertcondition(c2_cross_over_short, title='Traditional Sell', message='Traditional Sell Alert')
+
+// Reset flags after processing
+if tp_hit_alert
+    tp_hit_alert := false
+if sl_hit_alert
+    sl_hit_alert := false
+if star_exit_alert
+    star_exit_alert := false
