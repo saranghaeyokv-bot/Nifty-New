@@ -1062,11 +1062,10 @@ if swing_has_signal
 overlap_filter_blocks_all = enable_overlap_filter and any_strategy_active
 same_bar_overlap = enable_overlap_filter and signals_count > 1 and not any_strategy_active
 
-bb_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and bb_has_signal))
-tbh_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
-breakout_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
-swing_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and swing_has_signal and not bb_has_signal and not tbh_has_signal and not breakout_has_signal))
-
+bb_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and bb_has_signal))
+tbh_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
+breakout_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
+swing_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and swing_has_signal and not bb_has_signal and not tbh_has_signal and not breakout_has_signal))
 
 swing_hat_buy_final = swing_hat_buy_signal and swing_signal_allowed
 swing_hat_sell_final = swing_hat_sell_signal and swing_signal_allowed
@@ -1110,11 +1109,11 @@ if swing_hat_buy_signal or swing_hat_sell_signal
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // OVERLAP FILTER FUNCTION - ENHANCED VERSION
-isOverlapFilterAllowed() =>
-    if not enable_overlap_filter
-        true
-    else
-        not any_strategy_active
+// OVERLAP FILTER LOGIC - MOVED OUTSIDE FUNCTION TO AVOID SCOPE ISSUES
+overlap_filter_allowed = if not enable_overlap_filter
+    true
+else
+    not any_strategy_active
 
 // UPDATE ANY_STRATEGY_ACTIVE STATUS
 updateAnyStrategyActive() =>
@@ -1151,26 +1150,6 @@ if tbh_has_signal
 if swing_has_signal
     signals_count := signals_count + 1
 
-// ENHANCED OVERLAP FILTER CONDITIONS (ALL 4 STRATEGIES INCLUDED):
-// 1. If overlap filter is disabled, allow all signals
-// 2. If no active trades, allow all signals (normal overlap filter)
-// 3. If ANY strategy has active trade, block ALL new signals
-overlap_filter_blocks_all = enable_overlap_filter and any_strategy_active
-same_bar_overlap = enable_overlap_filter and signals_count > 1 and not any_strategy_active
-
-// Priority: BB > TBH > Breakout > Swing
-bb_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and bb_has_signal))
-tbh_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
-breakout_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
-swing_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and swing_has_signal and not bb_has_signal and not tbh_has_signal and not breakout_has_signal))
-
-// Final signal determination
-bullish_breakout = bullish_breakout_base and breakout_signal_allowed
-bearish_breakdown = bearish_breakdown_base and breakout_signal_allowed
-bb_sell_entry = bb_sell_base and bb_signal_allowed
-bb_buy_entry = bb_buy_base and bb_signal_allowed
-swing_hat_buy_final = swing_hat_buy_signal and swing_signal_allowed
-swing_hat_sell_final = swing_hat_sell_signal and swing_signal_allowed
 
 // Update signal tracking flags
 if bullish_breakout or bearish_breakdown
@@ -1216,9 +1195,10 @@ var float tbh_trade_points_tp = 0.0
 var float tbh_trade_points_sl = 0.0
 
 
-// TBH signal base conditions (these seem to be missing in your script)
-tbh_buy_condition_base = false  // Replace with actual TBH buy logic
-tbh_sell_condition_base = false // Replace with actual TBH sell logic
+// TBH signal base conditions - using placeholder logic until actual TBH signals are implemented
+tbh_buy_condition_base = tbh_buy_supertrend and enable_tbh_strategy and not isEntryBlocked() and isBiasAllowedForBuy()
+tbh_sell_condition_base = tbh_sell_supertrend and enable_tbh_strategy and not isEntryBlocked() and isBiasAllowedForSell()
+
 var bool tbh_in_trade = false   // Make sure this is defined
 
 
