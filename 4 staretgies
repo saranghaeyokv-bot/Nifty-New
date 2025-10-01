@@ -966,9 +966,11 @@ if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_
 swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isSwingBiasAllowedForBuy())
 
 swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and isSwingBiasAllowedForSell())
-swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed and swing_first_n_check and swing_signal_allowed
-swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and swing_first_n_check and swing_signal_allowed
 
+
+
+swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed and swing_first_n_check
+swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and swing_first_n_check
 
 // Dual ATR trailing stop logic
 swing_atr = ta.atr(swing_atr_trail_period)
@@ -999,6 +1001,8 @@ var bool swing_star_exit_alert = false
 var float swing_trade_points_tp = 0.0
 var float swing_trade_points_sl = 0.0
 
+
+
 // Star counting for star-based exit
 if swing_in_trade
     if swing_trade_type == "BUY" and swing_red_star
@@ -1008,6 +1012,83 @@ if swing_in_trade
 
 
 if swing_hat_buy_signal or swing_hat_sell_signal
+    swing_signal_this_bar := true
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ENHANCED OVERLAP FILTER LOGIC - NOW WITH 4 STRATEGIES
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// OVERLAP FILTER FUNCTION - ENHANCED VERSION
+isOverlapFilterAllowed() =>
+    if not enable_overlap_filter
+        true
+    else
+        not any_strategy_active
+
+// UPDATE ANY_STRATEGY_ACTIVE STATUS
+updateAnyStrategyActive() =>
+    any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
+
+// RESET SIGNAL FLAGS AT BAR START
+if barstate.isconfirmed
+    bb_signal_this_bar := false
+    breakout_signal_this_bar := false
+    tbh_signal_this_bar := false
+    swing_signal_this_bar := false
+
+// UPDATE STRATEGY ACTIVE STATUS
+updateAnyStrategyActive()
+
+// Base signal conditions (without overlap filtering) - WITH TIME EXCLUSION AND BIAS
+bb_sell_base = bb_waiting_for_entry and bb_alert_is_above_upper and close < bb_lower and is_red_candle and not isEntryBlocked() and isBiasAllowedForSell()
+bb_buy_base = bb_waiting_for_entry and not bb_alert_is_above_upper and close > bb_upper and is_green_candle and not isEntryBlocked() and isBiasAllowedForBuy()
+
+// Check for potential signals (INCLUDING SWING in overlap filter)
+bb_has_signal = (bb_sell_base or bb_buy_base) and enable_bb_strategy
+breakout_has_signal = (bullish_breakout_base or bearish_breakdown_base) and enable_breakout_strategy
+tbh_has_signal = (tbh_buy_condition_base or tbh_sell_condition_base) and enable_tbh_strategy
+swing_has_signal = (swing_hat_buy_signal or swing_hat_sell_signal) and enable_swing_strategy
+
+// Count how many strategies want to signal this bar (INCLUDING SWING)
+signals_count = 0
+if bb_has_signal
+    signals_count := signals_count + 1
+if breakout_has_signal
+    signals_count := signals_count + 1
+if tbh_has_signal
+    signals_count := signals_count + 1
+if swing_has_signal
+    signals_count := signals_count + 1
+
+// ENHANCED OVERLAP FILTER CONDITIONS (ALL 4 STRATEGIES INCLUDED):
+// 1. If overlap filter is disabled, allow all signals
+// 2. If no active trades, allow all signals (normal overlap filter)
+// 3. If ANY strategy has active trade, block ALL new signals
+overlap_filter_blocks_all = enable_overlap_filter and any_strategy_active
+same_bar_overlap = enable_overlap_filter and signals_count > 1 and not any_strategy_active
+
+// Priority: BB > TBH > Breakout > Swing
+bb_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and bb_has_signal))
+tbh_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
+breakout_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
+swing_signal_allowed = not overlap_filter_blocks_all and (not same_bar_overlap or (same_bar_overlap and swing_has_signal and not bb_has_signal and not tbh_has_signal and not breakout_has_signal))
+
+// Final signal determination
+bullish_breakout = bullish_breakout_base and breakout_signal_allowed
+bearish_breakdown = bearish_breakdown_base and breakout_signal_allowed
+bb_sell_entry = bb_sell_base and bb_signal_allowed
+bb_buy_entry = bb_buy_base and bb_signal_allowed
+swing_hat_buy_final = swing_hat_buy_signal and swing_signal_allowed
+swing_hat_sell_final = swing_hat_sell_signal and swing_signal_allowed
+
+// Update signal tracking flags
+if bullish_breakout or bearish_breakdown
+    breakout_signal_this_bar := true
+if bb_sell_entry or bb_buy_entry
+    bb_signal_this_bar := true
+if swing_hat_buy_final or swing_hat_sell_final
     swing_signal_this_bar := true
 
 
@@ -1044,6 +1125,12 @@ var bool tbh_sl_hit = false
 var bool tbh_315_exit = false
 var float tbh_trade_points_tp = 0.0
 var float tbh_trade_points_sl = 0.0
+
+
+// TBH signal base conditions (these seem to be missing in your script)
+tbh_buy_condition_base = false  // Replace with actual TBH buy logic
+tbh_sell_condition_base = false // Replace with actual TBH sell logic
+var bool tbh_in_trade = false   // Make sure this is defined
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // ENHANCED OVERLAP FILTER LOGIC - NOW WITH 3 STRATEGIES
