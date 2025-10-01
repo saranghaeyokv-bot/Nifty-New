@@ -1816,6 +1816,95 @@ if swing_exit_on_plot_cross and not swing_enable_atr_trail_exit and swing_in_tra
         swing_in_trade := false
         swing_trade_type := ""
 
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ENHANCED OVERLAP FILTER LOGIC - NOW WITH 4 STRATEGIES
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+// UPDATE ANY_STRATEGY_ACTIVE STATUS
+any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
+
+// RESET SIGNAL FLAGS AT BAR START
+if barstate.isconfirmed
+    bb_signal_this_bar := false
+    breakout_signal_this_bar := false
+    tbh_signal_this_bar := false
+    swing_signal_this_bar := false
+
+// OVERLAP FILTER LOGIC - MOVED OUTSIDE FUNCTION TO AVOID SCOPE ISSUES
+overlap_filter_allowed = if not enable_overlap_filter
+    true
+else
+    not any_strategy_active
+
+// TBH signal base conditions - using actual TBH supertrend signals
+tbh_buy_condition_base = tbh_buy_supertrend and enable_tbh_strategy and not isEntryBlocked() and isBiasAllowedForBuy()
+tbh_sell_condition_base = tbh_sell_supertrend and enable_tbh_strategy and not isEntryBlocked() and isBiasAllowedForSell()
+
+// Base signal conditions (without overlap filtering) - WITH TIME EXCLUSION AND BIAS
+bb_sell_base = bb_waiting_for_entry and bb_alert_is_above_upper and close < bb_lower and is_red_candle and not isEntryBlocked() and isBiasAllowedForSell()
+bb_buy_base = bb_waiting_for_entry and not bb_alert_is_above_upper and close > bb_upper and is_green_candle and not isEntryBlocked() and isBiasAllowedForBuy()
+
+// Check for potential signals (INCLUDING SWING in overlap filter)
+bb_has_signal = (bb_sell_base or bb_buy_base) and enable_bb_strategy
+breakout_has_signal = (bullish_breakout_base or bearish_breakdown_base) and enable_breakout_strategy
+tbh_has_signal = (tbh_buy_condition_base or tbh_sell_condition_base) and enable_tbh_strategy
+swing_has_signal = (swing_hat_buy_signal or swing_hat_sell_signal) and enable_swing_strategy
+
+// Count how many strategies want to signal this bar (INCLUDING SWING)
+signals_count = 0
+if bb_has_signal
+    signals_count := signals_count + 1
+if breakout_has_signal
+    signals_count := signals_count + 1
+if tbh_has_signal
+    signals_count := signals_count + 1
+if swing_has_signal
+    signals_count := signals_count + 1
+
+// ENHANCED OVERLAP FILTER CONDITIONS (ALL 4 STRATEGIES INCLUDED):
+// 1. If overlap filter is disabled, allow all signals
+// 2. If no active trades, allow all signals (normal overlap filter)
+// 3. If ANY strategy has active trade, block ALL new signals
+overlap_filter_blocks_all = enable_overlap_filter and any_strategy_active
+same_bar_overlap = enable_overlap_filter and signals_count > 1 and not any_strategy_active
+
+// Priority: BB > TBH > Breakout > Swing
+bb_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and bb_has_signal))
+tbh_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
+breakout_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
+swing_signal_allowed = overlap_filter_allowed and (not same_bar_overlap or (same_bar_overlap and swing_has_signal and not bb_has_signal and not tbh_has_signal and not breakout_has_signal))
+
+// Final signal determination
+bullish_breakout = bullish_breakout_base and breakout_signal_allowed
+bearish_breakdown = bearish_breakdown_base and breakout_signal_allowed
+bb_sell_entry = bb_sell_base and bb_signal_allowed
+bb_buy_entry = bb_buy_base and bb_signal_allowed
+tbh_buy_condition = tbh_buy_condition_base and tbh_signal_allowed
+tbh_sell_condition = tbh_sell_condition_base and tbh_signal_allowed
+swing_hat_buy_final = swing_hat_buy_signal and swing_signal_allowed
+swing_hat_sell_final = swing_hat_sell_signal and swing_signal_allowed
+
+// Update signal tracking flags
+if bullish_breakout or bearish_breakdown
+    breakout_signal_this_bar := true
+if bb_sell_entry or bb_buy_entry
+    bb_signal_this_bar := true
+if tbh_buy_condition or tbh_sell_condition
+    tbh_signal_this_bar := true
+if swing_hat_buy_final or swing_hat_sell_final
+    swing_signal_this_bar := true
+
+// OVERLAP FILTER FUNCTION FOR BACKWARD COMPATIBILITY
+isOverlapFilterAllowed() =>
+    overlap_filter_allowed
+
+
+
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // CORRECTED PERFORMANCE TRACKING FOR BB, BREAKOUT & TBH
 // ═══════════════════════════════════════════════════════════════════════════════════
