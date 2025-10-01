@@ -922,9 +922,29 @@ swing_is_red_candle = close < open
 swing_vol_ma = ta.sma(volume, swing_volume_ma_length)
 swing_vol_filter = volume > (swing_vol_ma * swing_volume_multiplier)
 
+
+
 // All calculations and assignments first
 swing_is_squeeze_bar = swing_high_squeeze or swing_low_squeeze
 swing_is_normal_bar = not swing_is_squeeze_bar
+
+// Trade state variables - DECLARE EARLY
+var bool swing_in_trade = false
+var string swing_trade_type = ""
+var float swing_entry_price = 0.0
+var float swing_stop_loss = 0.0
+var float swing_take_profit = 0.0
+var int swing_entry_bar = 0
+var string swing_last_trade_closed = ""
+var int swing_star_count_since_entry = 0
+
+// Helper: What is the real bar color for this bar?
+swing_bar_is_lime = swing_plotColor == color.lime
+swing_bar_is_red = swing_plotColor == color.red
+var int swing_consecutive_color_count = 0
+swing_bar_is_lime_or_red = swing_bar_is_lime or swing_bar_is_red
+
+swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_or_red[1] ? swing_consecutive_color_count[1] + 1 : 1) : 0
 
 
 // Entry conditions check for Swing - matching standalone logic
@@ -936,11 +956,7 @@ if swing_enable_first_n_colored_entry and swing_consecutive_color_count > swing_
     swing_first_n_check := false
 
 
-// Helper: What is the real bar color for this bar?
-swing_bar_is_lime = swing_plotColor == color.lime
-swing_bar_is_red = swing_plotColor == color.red
-var int swing_consecutive_color_count = 0
-swing_bar_is_lime_or_red = swing_bar_is_lime or swing_bar_is_red
+
 
 swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_show_marron_teal_signals and swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isSwingBiasAllowedForBuy())
 
@@ -948,15 +964,7 @@ swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal
 swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed and swing_first_n_check
 swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and swing_first_n_check
 
-// Trade state variables
-var bool swing_in_trade = false
-var string swing_trade_type = ""
-var float swing_entry_price = 0.0
-var float swing_stop_loss = 0.0
-var float swing_take_profit = 0.0
-var int swing_entry_bar = 0
-var string swing_last_trade_closed = ""
-var int swing_star_count_since_entry = 0
+
 
 // Dual ATR trailing stop logic
 swing_atr = ta.atr(swing_atr_trail_period)
@@ -994,7 +1002,6 @@ if swing_in_trade
     else if swing_trade_type == "SELL" and swing_green_star
         swing_star_count_since_entry += 1
 
-swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_or_red[1] ? swing_consecutive_color_count[1] + 1 : 1) : 0
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP)
