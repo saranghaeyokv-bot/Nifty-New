@@ -617,6 +617,11 @@ var bool bb_signal_this_bar = false
 var bool breakout_signal_this_bar = false
 var bool tbh_signal_this_bar = false
 var bool swing_signal_this_bar = false
+
+
+
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // BOLLINGER BAND CALCULATIONS WITH IMPROVED SL LOGIC
 // ═══════════════════════════════════════════════════════════════════════════════════
