@@ -1043,7 +1043,7 @@ var float tbh_trade_points_sl = 0.0
 
 // Update active trade status FIRST
 // Update active trade status FIRST - NOTE: Swing strategy is EXCLUDED from overlap filter
-any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade
+any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
 
 // Reset overlap tracking at start of each bar
 bb_signal_this_bar := false
