@@ -692,6 +692,7 @@ var int tbh_sl_count = 0
 var int swing_tp_count = 0
 var int swing_sl_count = 0
 var bool swing_auto_exit_alert = false
+var float swing_exit_price = na
 
 
 // SL Streak tracking
