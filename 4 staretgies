@@ -698,20 +698,6 @@ var bool swing_auto_exit_alert = false
 var float swing_exit_price = na
 
 
-
-var bool swing_in_trade = false
-var string swing_trade_type = ""
-var float swing_entry_price = na
-var float swing_stop_loss = na
-var float swing_take_profit = na
-var int swing_entry_bar_index = na
-var bool swing_tp_hit_alert = false
-var bool swing_sl_hit_alert = false
-var bool swing_star_exit_alert = false
-var float swing_trade_points_tp = 0.0
-var float swing_trade_points_sl = 0.0
-
-
 // SL Streak tracking
 var int current_sl_streak = 0
 var int max_sl_streak = 0
@@ -1050,7 +1036,7 @@ var int swing_entry_bar = 0
 var string swing_last_trade_closed = ""
 var int swing_star_count_since_entry = 0
 
-// Helper: What is the real bar color for this bar?
+// Helper: What is the real bar color for this bar? 
 swing_bar_is_lime = swing_plotColor == color.lime
 swing_bar_is_red = swing_plotColor == color.red
 var int swing_consecutive_color_count = 0
