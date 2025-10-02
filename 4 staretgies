@@ -49,7 +49,17 @@ enable_time_exclusion = input.bool(false, title="🚫 Enable Time Slot Exclusion
 
 // ENHANCED OVERLAP FILTER
 enable_overlap_filter = input.bool(true, title="✅ Enable Signal Overlap Filter", tooltip="Prevents multiple strategy signals when any strategy has active trade", group="Strategy Toggles")
-enable_315_exit = input.bool(true, title="✅ Enable 3:15 PM Auto Exit", tooltip="Closes all active trades at 3:15 PM and blocks new entries after 3:15 PM", group="Strategy Toggles")
+// AUTO EXIT SETTINGS
+enable_auto_exit = input.bool(true, title="✅ Enable Auto Exit", tooltip="Closes all active trades at specified time and blocks new entries after", group="Auto Exit Settings")
+auto_exit_hour = input.int(15, title="Auto Exit Hour (24h format)", minval=9, maxval=23, group="Auto Exit Settings")
+auto_exit_minute = input.int(15, title="Auto Exit Minute", minval=0, maxval=59, step=15, group="Auto Exit Settings")
+block_entries_after_exit = input.bool(true, title="Block New Entries After Exit Time", group="Auto Exit Settings")
+
+// STRATEGY START TIME SETTINGS
+bb_start_time = input.string("09:15", title="BB Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00"], group="Strategy Start Times")
+breakout_start_time = input.string("09:15", title="Breakout Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00"], group="Strategy Start Times")
+tbh_start_time = input.string("09:15", title="TBH Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00"], group="Strategy Start Times")
+swing_start_time = input.string("09:15", title="Swing Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00"], group="Strategy Start Times")
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // NIFTY BIAS CONFLUENCE CALCULATION - TOP 20 STOCKS
@@ -528,17 +538,49 @@ getMonthNameWithYear(monthNum, yearNum) =>
         => "Unknown"
     month_name + " " + str.tostring(yearNum)
 
-// FIXED TIME RESTRICTION FUNCTIONS
-isAfter315PM() =>
-    if not enable_315_exit
+
+// START TIME VALIDATION FUNCTIONS
+parseStartTime(timeStr) =>
+    switch timeStr
+        "09:15" => [9, 15]
+        "09:30" => [9, 30]
+        "09:45" => [9, 45]
+        "10:00" => [10, 0]
+        "10:15" => [10, 15]
+        "10:30" => [10, 30]
+        "10:45" => [10, 45]
+        "11:00" => [11, 0]
+        => [9, 15]
+
+isAfterStartTime(strategy_start_time) =>
+    [start_hour, start_minute] = parseStartTime(strategy_start_time)
+    current_hour = hour(time, 'GMT+5:30')
+    current_minute = minute(time, 'GMT+5:30')
+    
+    current_hour > start_hour or (current_hour == start_hour and current_minute >= start_minute)
+
+// Strategy-specific start time checks
+isBBStartTimeValid() => isAfterStartTime(bb_start_time)
+isBreakoutStartTimeValid() => isAfterStartTime(breakout_start_time)
+isTBHStartTimeValid() => isAfterStartTime(tbh_start_time)
+isSwingStartTimeValid() => isAfterStartTime(swing_start_time)
+
+
+
+isAfterAutoExitTime() =>
+    if not enable_auto_exit
         false
     else
-        t = time('1', 'GMT+5:30')
-        hour(t) > 15 or (hour(t) == 15 and minute(t) >= 15)
+        current_hour = hour(time, 'GMT+5:30')
+        current_minute = minute(time, 'GMT+5:30')
+        current_hour > auto_exit_hour or (current_hour == auto_exit_hour and current_minute >= auto_exit_minute)
 
-// NEW FUNCTION: Block all entries after 3:15 PM
+// Block all entries after auto exit time (if enabled)
 isEntryBlocked() =>
-    isAfter315PM()
+    if block_entries_after_exit
+        isAfterAutoExitTime()
+    else
+        false
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH CANDLE COLOR FILTER FUNCTIONS
@@ -670,14 +712,14 @@ var bool bb_alert_is_above_upper = false
 var int bb_alert_bar_index = na
 
 // Update alert candle levels
-if alert_above_upper and enable_bb_strategy and barstate.isconfirmed
+if alert_above_upper and enable_bb_strategy and barstate.isconfirmed and isBBStartTimeValid()
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
     bb_alert_is_above_upper := true
     bb_alert_bar_index := bar_index
 
-if alert_below_lower and enable_bb_strategy and barstate.isconfirmed
+if alert_below_lower and enable_bb_strategy and barstate.isconfirmed and isBBStartTimeValid()
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
@@ -781,7 +823,7 @@ var float breakout_entry_candle_low = na
 
 hgst_value = ta.highest(prd)[1]
 
-if array.size(phval) >= mintest and close > open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy()
+if array.size(phval) >= mintest and close > open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy() and isBreakoutStartTimeValid()
     if close > hgst_value
         bomax = array.get(phval, 0)
         xx = 0
@@ -806,7 +848,7 @@ var float breakout_entry_candle_high = na
 
 lwst_value = ta.lowest(prd)[1]
 
-if array.size(plval) >= mintest and close < open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell()
+if array.size(plval) >= mintest and close < open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell() and isBreakoutStartTimeValid()
     if close < lwst_value
         bomin = array.get(plval, 0)
         xx = 0
@@ -966,7 +1008,7 @@ swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_o
 
 
 // Entry conditions check for Swing - matching standalone logic
-swing_entry_allowed = enable_swing_strategy and not swing_in_trade
+swing_entry_allowed = enable_swing_strategy and not swing_in_trade and isSwingStartTimeValid()
 
 // Apply first N colored entry filter if enabled
 swing_first_n_check = true
@@ -1417,7 +1459,7 @@ var float bb_trade_points_tp = 0.0
 var float bb_trade_points_sl = 0.0
 
 // 3:15 PM Auto Exit for BB
-if bb_in_trade and isAfter315PM()
+if bb_in_trade and isAfter315PM() 
     bb_315_exit := true
     bb_in_trade := false
     if bb_trade_type == "BUY"
