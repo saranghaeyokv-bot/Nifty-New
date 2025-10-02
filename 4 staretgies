@@ -691,6 +691,7 @@ var int tbh_tp_count = 0
 var int tbh_sl_count = 0
 var int swing_tp_count = 0
 var int swing_sl_count = 0
+var bool swing_auto_exit_alert = false
 
 
 // SL Streak tracking
@@ -1692,10 +1693,35 @@ if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_bas
             swing_in_trade := false
             swing_trade_type := ""
 
+
+// SWING AUTO EXIT LOGIC - SEPARATE FROM MAIN AUTO EXIT
+if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
+    swing_exit_price = normal_close
+    if swing_trade_type == "BUY"
+        if swing_exit_price > swing_entry_price
+            swing_trade_points_tp := swing_exit_price - swing_entry_price
+            swing_tp_hit_alert := true
+        else
+            swing_trade_points_sl := swing_entry_price - swing_exit_price
+            swing_sl_hit_alert := true
+    else if swing_trade_type == "SELL"
+        if swing_exit_price < swing_entry_price
+            swing_trade_points_tp := swing_entry_price - swing_exit_price
+            swing_tp_hit_alert := true
+        else
+            swing_trade_points_sl := swing_exit_price - swing_entry_price
+            swing_sl_hit_alert := true
+    
+    swing_auto_exit_alert := true
+    swing_in_trade := false
+    swing_trade_type := ""
+
+
+
 // SWING COLOR EXIT LOGIC
 if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     // Exit for Buy (entered on lime): exit on any bar that is NOT lime
-    if swing_trade_type == "BUY" and not swing_bar_is_lime
+    if enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
         swing_exit_price = normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
@@ -2590,6 +2616,12 @@ alertcondition(swing_buy_entry and enable_swing_strategy, 'Swing Buy Signal', 'S
 alertcondition(swing_sell_entry and enable_swing_strategy, 'Swing Sell Signal', 'Swing Sell Signal Triggered')
 alertcondition(swing_tp_hit_alert and enable_swing_strategy, 'Swing Take Profit', 'Swing Take Profit Hit')
 alertcondition(swing_sl_hit_alert and enable_swing_strategy, 'Swing Stop Loss', 'Swing Stop Loss Hit')
+
+// Add to existing swing alert logic
+if swing_auto_exit_alert and swing_enable_alerts
+    alert("Swing Auto Exit: " + swing_trade_type + " at " + str.tostring(swing_exit_price))
+    swing_auto_exit_alert := false
+
 
 // Reset Swing flags after processing
 if swing_tp_hit_alert
