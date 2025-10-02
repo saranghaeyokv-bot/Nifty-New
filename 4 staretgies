@@ -582,6 +582,10 @@ isEntryBlocked() =>
     else
         false
 
+    // Backward compatibility function
+isAfter315PM() =>
+    isAfterAutoExitTime()
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH CANDLE COLOR FILTER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════════
