@@ -1064,6 +1064,56 @@ swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed and sw
 swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and swing_first_n_check
 
 
+
+
+// SWING SIGNAL DETECTION - ADD THIS COMPLETE SECTION
+// Calculate swing signals based on Heikin Ashi T3 calculations
+swing_buy_signal = false
+swing_sell_signal = false
+
+// Basic swing signal logic (you may need to adjust based on your specific HAT logic)
+if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
+    // Example signal conditions - adjust these based on your HAT strategy
+    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
+    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
+    
+    swing_buy_signal := swing_buy_condition and isSwingBiasAllowedForBuy() and not isSwingEntryBlocked() and isSwingStartTimeValid()
+    swing_sell_signal := swing_sell_condition and isSwingBiasAllowedForSell() and not isSwingEntryBlocked() and isSwingStartTimeValid()
+
+
+
+// SWING ENTRY PROCESSING - ADD THIS COMPLETE SECTION
+if swing_buy_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "BUY"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    
+    // Create entry label
+    if swing_show_label_signals or true  // Always show for debugging
+        label.new(bar_index, low - (high - low) * 0.1, 
+                 text="SWING\nBUY", 
+                 color=color.new(color.green, 0), 
+                 textcolor=color.white, 
+                 style=label.style_label_up, 
+                 size=size.small)
+
+if swing_sell_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "SELL"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    
+    // Create entry label
+    if swing_show_label_signals or true  // Always show for debugging
+        label.new(bar_index, high + (high - low) * 0.1, 
+                 text="SWING\nSELL", 
+                 color=color.new(color.red, 0), 
+                 textcolor=color.white, 
+                 style=label.style_label_down, 
+                 size=size.small)
+
+
 // ═════════════════════════════════════════════════════════════════
 // SWING STRATEGY INTEGRATION INTO OVERLAP FILTER
 // ═════════════════════════════════════════════════════════════════
