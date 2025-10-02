@@ -18,6 +18,19 @@ normal_low = request.security(base_ticker, timeframe.period, low, lookahead=barm
 normal_open = request.security(base_ticker, timeframe.period, open, lookahead=barmerge.lookahead_off)
 
 
+var bool tbh_in_trade = false
+var string tbh_trade_type = na
+var float tbh_entry_price = na
+var float tbh_initial_sl = na  // Initial SL (Fixed/Candle based)
+var float tbh_current_sl = na  // Current active SL (can switch to Supertrend)
+var float tbh_take_profit = na  // Take profit level (only for Fixed TP mode)
+var bool tbh_supertrend_activated = false  // Flag when Supertrend takes over
+var int tbh_entry_bar_index = na
+var float tbh_entry_candle_low = na
+var float tbh_entry_candle_high = na
+var bool tbh_using_fixed_tp = false  // Track which TP mode is active
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // STRATEGY ENABLE/DISABLE TOGGLES
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1075,17 +1088,7 @@ if swing_in_trade
 // TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP)
 // ═══════════════════════════════════════════════════════════════════════════════════
 
-var bool tbh_in_trade = false
-var string tbh_trade_type = na
-var float tbh_entry_price = na
-var float tbh_initial_sl = na  // Initial SL (Fixed/Candle based)
-var float tbh_current_sl = na  // Current active SL (can switch to Supertrend)
-var float tbh_take_profit = na  // Take profit level (only for Fixed TP mode)
-var bool tbh_supertrend_activated = false  // Flag when Supertrend takes over
-var int tbh_entry_bar_index = na
-var float tbh_entry_candle_low = na
-var float tbh_entry_candle_high = na
-var bool tbh_using_fixed_tp = false  // Track which TP mode is active
+
 
 // TBH Entry Conditions - WITH ALL FILTERS (TIME, CANDLE COLOR, ENHANCED ENTRY, BIAS)
 tbh_buy_condition_base  = ta.crossover(tbh_rsi_value, tbh_rsi_oversold) and close > tbh_fib_level_1 and 
