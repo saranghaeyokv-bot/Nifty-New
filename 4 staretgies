@@ -1035,6 +1035,9 @@ var int swing_entry_bar = 0
 var string swing_last_trade_closed = ""
 var int swing_star_count_since_entry = 0
 var float swing_entry_price = na
+var int swing_entry_bar_index = na
+var float swing_stop_loss = na
+var float swing_take_profit = na
 
 // Helper: What is the real bar color for this bar? 
 swing_bar_is_lime = swing_plotColor == color.lime
