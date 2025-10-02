@@ -1165,7 +1165,7 @@ if swing_in_trade
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP)
+// TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP) 
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 
@@ -1197,6 +1197,10 @@ var float tbh_trade_points_sl = 0.0
 // ENHANCED OVERLAP FILTER LOGIC WITH SWING OVERRIDE FEATURE
 // ═══════════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ENHANCED OVERLAP FILTER LOGIC WITH SWING OVERRIDE FEATURE
+// ═══════════════════════════════════════════════════════════════════════════════════
+
 // Update active trade status
 any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
 
@@ -1209,6 +1213,8 @@ swing_signal_this_bar := false
 // Base signal conditions (without overlap filtering) - WITH TIME EXCLUSION AND BIAS
 bb_sell_base = bb_waiting_for_entry and bb_alert_is_above_upper and close < bb_alert_candle_low and enable_bb_strategy and not isEntryBlocked() and isBiasAllowedForSell()
 bb_buy_base = bb_waiting_for_entry and not bb_alert_is_above_upper and close > bb_alert_candle_high and enable_bb_strategy and not isEntryBlocked() and isBiasAllowedForBuy()
+
+
 
 // Check for potential signals
 bb_has_signal = (bb_sell_base or bb_buy_base) and enable_bb_strategy
@@ -1252,8 +1258,6 @@ if tbh_has_signal
     signals_count := signals_count + 1
 
 // OVERLAP FILTER CONDITIONS:
-// For non-swing strategies: Normal overlap filter (blocked by any active trade)
-// For swing strategy: Not blocked by other strategies (runs independently)
 overlap_filter_blocks_non_swing = enable_overlap_filter and (bb_in_trade or breakout_in_trade or tbh_in_trade)
 same_bar_overlap = enable_overlap_filter and signals_count > 1 and not (bb_in_trade or breakout_in_trade or tbh_in_trade)
 
@@ -1678,7 +1682,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 if not swing_enable_atr_trail_exit and swing_use_star_based_exit and swing_in_trade and barstate.isconfirmed
     swing_exit_stars = swing_exit_on_second_star ? 2 : 1
     if swing_trade_type == "BUY" and swing_star_count_since_entry >= swing_exit_stars and swing_red_star
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1689,7 +1693,7 @@ if not swing_enable_atr_trail_exit and swing_use_star_based_exit and swing_in_tr
         swing_in_trade := false
         swing_trade_type := ""
     if swing_trade_type == "SELL" and swing_star_count_since_entry >= swing_exit_stars and swing_green_star
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
@@ -1728,7 +1732,7 @@ if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_bas
 
 // SWING AUTO EXIT LOGIC - SEPARATE FROM MAIN AUTO EXIT
 if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
-    swing_exit_price = normal_close
+    swing_exit_price := normal_close
     if swing_trade_type == "BUY"
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
@@ -1754,7 +1758,7 @@ if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
 if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     // Exit for Buy (entered on lime): exit on any bar that is NOT lime
     if enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1766,7 +1770,7 @@ if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 
     // Exit for Sell (entered on red): exit on any bar that is NOT red
     if swing_trade_type == "SELL" and not swing_bar_is_red
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
@@ -1779,7 +1783,7 @@ if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 // SWING PLOT CROSS EXIT
 if swing_exit_on_plot_cross and not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY" and normal_close < swing_crossPlot
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1789,7 +1793,7 @@ if swing_exit_on_plot_cross and not swing_enable_atr_trail_exit and swing_in_tra
         swing_in_trade := false
         swing_trade_type := ""
     if swing_trade_type == "SELL" and normal_close > swing_crossPlot
-        swing_exit_price = normal_close
+        swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
