@@ -1282,7 +1282,7 @@ swing_sell_entry = swing_hat_sell_signal and swing_signal_allowed and enable_swi
 // Update signal tracking flags
 if bullish_breakout or bearish_breakdown
     breakout_signal_this_bar := true
-if bb_sell_entry or bb_buy_entry
+if bb_sell_signal or bb_buy_signal
     bb_signal_this_bar := true
 if tbh_buy_condition or tbh_sell_condition
     tbh_signal_this_bar := true
@@ -1294,7 +1294,7 @@ if swing_buy_entry or swing_sell_entry
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // Generate BB entry signals with IMPROVED SL LOGIC
-if bb_sell_entry and not bb_in_trade and barstate.isconfirmed
+if bb_sell_signal and not bb_in_trade and barstate.isconfirmed
     bb_in_trade := true
     bb_trade_type := "SELL"
     bb_entry_price := normal_close
@@ -1314,7 +1314,7 @@ if bb_sell_entry and not bb_in_trade and barstate.isconfirmed
     bb_entry_bar_index := bar_index
     bb_waiting_for_entry := false
 
-if bb_buy_entry and not bb_in_trade and barstate.isconfirmed
+if bb_buy_signal and not bb_in_trade and barstate.isconfirmed
     bb_in_trade := true
     bb_trade_type := "BUY"
     bb_entry_price := normal_close
@@ -2202,8 +2202,8 @@ if barstate.islast
     
     // Overlap blocking status
     table.cell(statusTable, 0, 9, "Overlap Blocks", text_color=color.white, bgcolor=color.new(color.red, 40))
-    blocks_status = overlap_filter_blocks_all ? "YES" : "NO"
-    blocks_color = overlap_filter_blocks_all ? color.new(color.red, 40) : color.new(color.green, 40)
+    blocks_status = overlap_filter_blocks_non_swing ? "YES" : "NO"
+    blocks_color = overlap_filter_blocks_non_swing ? color.new(color.red, 40) : color.new(color.green, 40)
     table.cell(statusTable, 1, 9, blocks_status, text_color=color.white, bgcolor=blocks_color)
     
     // TBH Supertrend Activation Status
@@ -2270,8 +2270,8 @@ plot(tbh_in_trade and enable_tbh_strategy ? tbh_current_sl : na, color=tbh_sl_co
 plot(tbh_in_trade and enable_tbh_strategy and tbh_using_fixed_tp ? tbh_take_profit : na, color=color.blue, linewidth=2, title="TBH Fixed TP", style=plot.style_linebr)
 
 // Plot entry signals for all strategies
-plotshape(bb_sell_entry and show_bb_signals, title='BB Sell Entry', style=shape.labeldown, location=location.abovebar, color=color.red, text='BB\nSELL', textcolor=color.white, size=size.small)
-plotshape(bb_buy_entry and show_bb_signals, title='BB Buy Entry', style=shape.labelup, location=location.belowbar, color=color.green, text='BB\nBUY', textcolor=color.white, size=size.small)
+plotshape(bb_sell_signal and show_bb_signals, title='BB Sell Entry', style=shape.labeldown, location=location.abovebar, color=color.red, text='BB\nSELL', textcolor=color.white, size=size.small)
+plotshape(bb_buy_signal and show_bb_signals, title='BB Buy Entry', style=shape.labelup, location=location.belowbar, color=color.green, text='BB\nBUY', textcolor=color.white, size=size.small)
 
 plotshape(bullish_breakout, style=shape.labelup, color=color.green, location=location.belowbar, text="BREAKOUT\nBUY", size=size.small)
 plotshape(bearish_breakdown, style=shape.labeldown, color=color.red, location=location.abovebar, text="BREAKDOWN\nSELL", size=size.small)
@@ -2481,11 +2481,11 @@ if bb_enable_alerts and enable_bb_strategy
     if alert_below_lower
         alert("BB ALERT BELOW LOWER BAND: Waiting for reversal BUY entry above " + str.tostring(bb_alert_candle_high, "#.##") + " | BIAS: " + current_nifty_bias + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
     
-    if bb_sell_entry
+    if bb_sell_signal
         risk_points = bb_entry_price - bb_stop_loss
         alert("BB SELL ENTRY: " + str.tostring(close, "#.##") + " | SL: " + str.tostring(bb_stop_loss, "#.##") + " | Risk: " + str.tostring(math.round(risk_points, 1)) + "pts | Method: " + bb_sl_method + " | BIAS: " + current_nifty_bias + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
     
-    if bb_buy_entry
+    if bb_buy_signal
         risk_points = bb_stop_loss - bb_entry_price
         alert("BB BUY ENTRY: " + str.tostring(close, "#.##") + " | SL: " + str.tostring(bb_stop_loss, "#.##") + " | Risk: " + str.tostring(math.round(risk_points, 1)) + "pts | Method: " + bb_sl_method + " | BIAS: " + current_nifty_bias + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
     
@@ -2597,8 +2597,8 @@ if bias_blocks_sell
 // Alert Conditions for all 3 strategies
 alertcondition(alert_above_upper and enable_bb_strategy, 'BB Alert Above Upper Band', 'BB Alert Candle Above Upper Band')
 alertcondition(alert_below_lower and enable_bb_strategy, 'BB Alert Below Lower Band', 'BB Alert Candle Below Lower Band')
-alertcondition(bb_sell_entry, 'BB Sell Entry Signal', 'BB Reversal SELL Entry')
-alertcondition(bb_buy_entry, 'BB Buy Entry Signal', 'BB Reversal BUY Entry')
+alertcondition(bb_sell_signal, 'BB Sell Entry Signal', 'BB Reversal SELL Entry')
+alertcondition(bb_buy_signal, 'BB Buy Entry Signal', 'BB Reversal BUY Entry')
 alertcondition(bb_tp_hit, 'BB Take Profit Hit', 'BB Take Profit Hit')
 alertcondition(bb_sl_hit, 'BB Stop Loss Hit', 'BB Stop Loss Hit')
 
