@@ -784,7 +784,7 @@ iff_2 = close < TS ? color.red : color.black
 Color = close > TS ? color.green : iff_2
 Buy_ATR = ta.crossover(close, TS)
 Sell_ATR = ta.crossunder(close, TS)
-is_auto_tp_time = auto_tp_time and hour(time) == 15 and minute(time) == 15
+is_auto_tp_time = auto_tp_time and isAfterAutoExitTime()
 
 lll = math.max(math.min(bar_index, 300), 1)
 h_value = ta.highest(lll)
@@ -2097,10 +2097,11 @@ if barstate.islast
     active_color = any_strategy_active ? color.new(color.red, 40) : color.new(color.green, 40)
     table.cell(statusTable, 1, 6, active_status, text_color=color.white, bgcolor=active_color)
     
-    table.cell(statusTable, 0, 7, "3:15 Exit", text_color=color.white, bgcolor=color.new(color.orange, 40))
-    exit_315_status = enable_315_exit ? "ON" : "OFF"
-    table.cell(statusTable, 1, 7, exit_315_status, text_color=color.white, bgcolor=enable_315_exit ? color.new(color.green, 40) : color.new(color.red, 40))
-    
+    table.cell(statusTable, 0, 7, "Auto Exit", text_color=color.white, bgcolor=color.new(color.orange, 40))
+    exit_auto_status = enable_auto_exit ? "ON" : "OFF"
+    table.cell(statusTable, 1, 7, exit_auto_status, text_color=color.white, bgcolor=enable_auto_exit ? color.new(color.green, 40) : color.new(color.red, 40))
+
+
     // Signal overlap tracking
     table.cell(statusTable, 0, 8, "Signals Count", text_color=color.white, bgcolor=color.new(color.yellow, 40))
     table.cell(statusTable, 1, 8, str.tostring(signals_count), text_color=color.white, bgcolor=signals_count > 1 ? color.new(color.red, 40) : color.new(color.green, 40))
