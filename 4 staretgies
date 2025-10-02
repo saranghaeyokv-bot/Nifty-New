@@ -55,6 +55,15 @@ auto_exit_hour = input.int(15, title="Auto Exit Hour (24h format)", minval=9, ma
 auto_exit_minute = input.int(15, title="Auto Exit Minute", minval=0, maxval=59, step=15, group="Auto Exit Settings")
 block_entries_after_exit = input.bool(true, title="Block New Entries After Exit Time", group="Auto Exit Settings")
 
+
+
+// SWING STRATEGY AUTO EXIT SETTINGS - SEPARATE FROM MAIN AUTO EXIT
+swing_enable_auto_exit = input.bool(false, title="✅ Enable Swing Auto Exit", tooltip="Separate auto exit for swing strategy only", group="Swing Auto Exit Settings")
+swing_auto_exit_hour = input.int(15, title="Swing Auto Exit Hour (24h format)", minval=9, maxval=23, group="Swing Auto Exit Settings")
+swing_auto_exit_minute = input.int(15, title="Swing Auto Exit Minute", minval=0, maxval=59, step=15, group="Swing Auto Exit Settings")
+swing_block_entries_after_exit = input.bool(true, title="Block Swing Entries After Exit Time", group="Swing Auto Exit Settings")
+
+
 // STRATEGY START TIME SETTINGS
 bb_start_time = input.string("09:15", title="BB Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:45", "11:00"], group="Strategy Start Times")
 breakout_start_time = input.string("09:15", title="Breakout Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
@@ -585,6 +594,26 @@ isEntryBlocked() =>
     // Backward compatibility function
 isAfter315PM() =>
     isAfterAutoExitTime()
+
+
+
+
+// Swing-specific auto exit functions
+isAfterSwingAutoExitTime() =>
+    if not swing_enable_auto_exit
+        false
+    else
+        current_hour = hour(time, 'GMT+5:30')
+        current_minute = minute(time, 'GMT+5:30')
+        current_hour > swing_auto_exit_hour or (current_hour == swing_auto_exit_hour and current_minute >= swing_auto_exit_minute)
+
+// Block swing entries after swing auto exit time (if enabled)
+isSwingEntryBlocked() =>
+    if swing_block_entries_after_exit
+        isAfterSwingAutoExitTime()
+    else
+        false
+
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH CANDLE COLOR FILTER FUNCTIONS
