@@ -1029,8 +1029,6 @@ swing_is_normal_bar = not swing_is_squeeze_bar
 // Trade state variables - DECLARE EARLY
 var bool swing_in_trade = false
 var string swing_trade_type = ""
-var float swing_stop_loss = 0.0
-var float swing_take_profit = 0.0
 var int swing_entry_bar = 0
 var string swing_last_trade_closed = ""
 var int swing_star_count_since_entry = 0
