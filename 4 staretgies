@@ -44,8 +44,6 @@ enable_swing_strategy = input.bool(true, title="✅ Enable Swing (Heikin Ashi) S
 // BIAS CONFLUENCE TOGGLE
 enable_bias_confluence = input.bool(true, title="✅ Enable Nifty Bias Confluence", tooltip="Requires BULL bias for BUY signals and BEAR bias for SELL signals", group="Strategy Toggles")
 
-// TIME SLOT EXCLUSION SETTINGS
-enable_time_exclusion = input.bool(false, title="🚫 Enable Time Slot Exclusion", tooltip="Blocks trades during poor performance time slots", group="Strategy Toggles")
 
 // ENHANCED OVERLAP FILTER
 enable_overlap_filter = input.bool(true, title="✅ Enable Signal Overlap Filter", tooltip="Prevents multiple strategy signals when any strategy has active trade", group="Strategy Toggles")
@@ -354,19 +352,7 @@ bb_fixed_sl_points = input.float(30.0, title="Max SL Points (Smart/Fixed)", minv
 bb_sl_buffer = input.float(2.0, title="Alert Candle SL Buffer", minval=-50, maxval=10.0, step=0.5, group="Bollinger Band Strategy", tooltip="Extra buffer points added to alert candle high/low")
 bb_enable_alerts = input.bool(true, title="Enable BB Alerts", group="Bollinger Band Strategy")
 
-// BB Time Exclusion Settings - 12 slots
-bb_exclude_0915_0930 = input.bool(true, title="Exclude 9:15-9:30", group="Bollinger Band Strategy")
-bb_exclude_0930_0945 = input.bool(true, title="Exclude 9:30-9:45", group="Bollinger Band Strategy")
-bb_exclude_1015_1030 = input.bool(true, title="Exclude 09:20-10:30", group="Bollinger Band Strategy")
-bb_exclude_1115_1145 = input.bool(true, title="Exclude 11:15-11:45", group="Bollinger Band Strategy")
-bb_exclude_1200_1215 = input.bool(true, title="Exclude 12:00-12:15", group="Bollinger Band Strategy")
-bb_exclude_1245_1300 = input.bool(true, title="Exclude 12:45-13:00", group="Bollinger Band Strategy")
-bb_exclude_1300_1315 = input.bool(true, title="Exclude 13:00-13:15", group="Bollinger Band Strategy")
-bb_exclude_1315_1330 = input.bool(true, title="Exclude 13:15-13:30", group="Bollinger Band Strategy")
-bb_exclude_1330_1345 = input.bool(true, title="Exclude 13:30-13:45", group="Bollinger Band Strategy")
-bb_exclude_1415_1430 = input.bool(true, title="Exclude 14:15-14:30", group="Bollinger Band Strategy")
-bb_exclude_1430_1445 = input.bool(true, title="Exclude 14:30-14:45", group="Bollinger Band Strategy")
-bb_exclude_1500_1515 = input.bool(true, title="Exclude 15:00-15:15", group="Bollinger Band Strategy") 
+
 
 // Display Settings - DEFAULT OFF FOR CLEAN VISUALS
 show_bb_lines = input.bool(false, title="Show Bollinger Bands", group="Bollinger Band Strategy")
@@ -426,11 +412,6 @@ tbh_entry_candle_buffer = input.float(5.0, title="Entry Candle SL Buffer (Points
 
 tbh_label_offset = input.float(1.0, title="Label Distance", minval=0.1, maxval=5.0, step=0.1, group="Top Bottom Hunter Strategy")
 
-// TBH Time Exclusion Settings - 4 slots
-tbh_exclude_1015_1030 = input.bool(true, title="Exclude 09:20-10:30", group="Top Bottom Hunter Strategy")
-tbh_exclude_1045_1100 = input.bool(true, title="Exclude 10:45-11:00", group="Top Bottom Hunter Strategy")
-tbh_exclude_1300_1315 = input.bool(true, title="Exclude 13:00-13:15", group="Top Bottom Hunter Strategy")
-tbh_exclude_1430_1445 = input.bool(true, title="Exclude 14:30-14:45", group="Top Bottom Hunter Strategy")
 
 // TBH Candle Color Filter
 tbh_use_candle_color = input.bool(true, title="✅ Enable Candle Color Filter", tooltip="BUY only on green candles, SELL only on red candles", group="Top Bottom Hunter Strategy")
@@ -696,6 +677,19 @@ var int swing_tp_count = 0
 var int swing_sl_count = 0
 var bool swing_auto_exit_alert = false
 var float swing_exit_price = na
+// Missing swing trade management variables
+var bool swing_in_trade = false
+var string swing_trade_type = ""
+var float swing_entry_price = na
+var int swing_entry_bar_index = na
+var int swing_entry_bar = na
+var int swing_star_count_since_entry = 0
+var bool swing_tp_hit_alert = false
+var bool swing_sl_hit_alert = false
+var float swing_trade_points_tp = 0.0
+var float swing_trade_points_sl = 0.0
+var float swing_stop_loss = na
+var float swing_take_profit = na
 
 
 // SL Streak tracking
@@ -999,6 +993,65 @@ swing_c2 = swing_t3(swing_ha_c, swing_T3Length, swing_T3FactorCalc)
 swing_h2 = swing_t3(swing_ha_h, swing_T3Length, swing_T3FactorCalc)
 swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 
+
+
+
+// ═════════════════════════════════════════════════════════════════
+// SWING SIGNAL DETECTION AND ENTRY PROCESSING
+// ═════════════════════════════════════════════════════════════════
+
+// Define swing_signal_allowed
+swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
+
+// Initialize swing signals
+swing_buy_signal = false
+swing_sell_signal = false
+
+// Basic swing signal logic based on Heikin Ashi T3 calculations
+if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
+    // Example signal conditions - adjust these based on your specific HAT strategy
+    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
+    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
+    
+    swing_buy_signal := swing_buy_condition and isSwingBiasAllowedForBuy()
+    swing_sell_signal := swing_sell_condition and isSwingBiasAllowedForSell()
+
+// SWING ENTRY PROCESSING
+if swing_buy_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "BUY"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    swing_entry_bar := bar_index
+    swing_star_count_since_entry := 0
+    
+    // Create entry label
+    label.new(bar_index, low - (high - low) * 0.1, 
+             text="SWING\nBUY", 
+             color=color.new(color.green, 0), 
+             textcolor=color.white, 
+             style=label.style_label_up, 
+             size=size.small)
+
+if swing_sell_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "SELL"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    swing_entry_bar := bar_index
+    swing_star_count_since_entry := 0
+    
+    // Create entry label
+    label.new(bar_index, high + (high - low) * 0.1, 
+             text="SWING\nSELL", 
+             color=color.new(color.red, 0), 
+             textcolor=color.white, 
+             style=label.style_label_down, 
+             size=size.small)
+
+
+
+
 swing_percentHL = ((swing_o2 - swing_c2) / math.avg(swing_o2, swing_c2)) * 100
 
 swing_high_squeeze = math.abs(swing_percentHL) < swing_percentSqueeze and swing_percentHL > 0
@@ -1027,16 +1080,7 @@ swing_is_squeeze_bar = swing_high_squeeze or swing_low_squeeze
 swing_is_normal_bar = not swing_is_squeeze_bar
 
 // Missing swing trade management variables - ADD THESE
-var bool swing_in_trade = false
-var string swing_trade_type = ""
-var float swing_entry_price = na
-var int swing_entry_bar_index = na
-var bool swing_tp_hit_alert = false
-var bool swing_sl_hit_alert = false
-var float swing_trade_points_tp = 0.0
-var float swing_trade_points_sl = 0.0
-var float swing_stop_loss = na
-var float swing_take_profit = na
+
 
 // Helper: What is the real bar color for this bar? 
 swing_bar_is_lime = swing_plotColor == color.lime
@@ -1066,13 +1110,6 @@ swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed and 
 
 
 
-
-// SWING SIGNAL DETECTION AND ENTRY PROCESSING - ADD THIS COMPLETE SECTION
-swing_buy_signal = false
-swing_sell_signal = false
-
-// SWING signals: Only blocked by swing being in trade (independent from other strategies)
-swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
 // Basic swing signal logic based on Heikin Ashi T3 calculations
 if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
@@ -2175,114 +2212,7 @@ if barstate.islast and show_performance_table
     table.cell(performanceTable, 10, 14, 'OVERLAP', text_color=color.white, text_size=size.small, bgcolor=enable_overlap_filter ? color.new(color.green, 60) : color.new(color.red, 60))
     table.cell(performanceTable, 11, 14, 'AUTO EXIT', text_color=color.white, text_size=size.small, bgcolor=enable_auto_exit ? color.new(color.green, 60) : color.new(color.red, 60))
 
-// ═══════════════════════════════════════════════════════════════════════════════════
-// ENHANCED STATUS TABLE - UPDATED FOR 3 STRATEGIES INCLUDING BIAS
-// ═══════════════════════════════════════════════════════════════════════════════════
 
-var statusTable = table.new(position.top_right, 2, 18, bgcolor=color.new(color.black, 20), border_width=2)
-if barstate.islast
-    table.cell(statusTable, 0, 0, "Parameter", text_color=color.white, bgcolor=color.new(color.blue, 60))
-    table.cell(statusTable, 1, 0, "Value", text_color=color.white, bgcolor=color.new(color.blue, 60))
-    
-    // Active trades status
-    active_trades = ""
-    if bb_in_trade
-        active_trades := active_trades + "BB:" + bb_trade_type + " "
-    if breakout_in_trade
-        active_trades := active_trades + "BRK:" + breakout_trade_type + " "
-    if tbh_in_trade
-        active_trades := active_trades + "TBH-TRAIL:" + tbh_trade_type + " "
-    
-    if active_trades == ""
-        active_trades := "NONE"
-    
-    table.cell(statusTable, 0, 1, "Active Trades", text_color=color.white, bgcolor=color.new(color.green, 40))
-    table.cell(statusTable, 1, 1, active_trades, text_color=color.white, bgcolor=color.new(color.green, 40))
-    
-    // Strategy status
-    strategies_enabled = ""
-    if enable_bb_strategy
-        strategies_enabled := strategies_enabled + "BB "
-    if enable_breakout_strategy
-        strategies_enabled := strategies_enabled + "BRK "
-    if enable_tbh_strategy
-        strategies_enabled := strategies_enabled + "TBH-TRAIL "
-    
-    table.cell(statusTable, 0, 2, "Enabled", text_color=color.white, bgcolor=color.new(color.blue, 40))
-    table.cell(statusTable, 1, 2, strategies_enabled, text_color=color.white, bgcolor=color.new(color.blue, 40))
-    
-    // BIAS CONFLUENCE STATUS
-    table.cell(statusTable, 0, 3, "Bias Confluence", text_color=color.white, bgcolor=color.new(color.purple, 40))
-    bias_status_text = enable_bias_confluence ? "ON" : "OFF"
-    table.cell(statusTable, 1, 3, bias_status_text, text_color=color.white, bgcolor=enable_bias_confluence ? color.new(color.green, 40) : color.new(color.red, 40))
-    
-    table.cell(statusTable, 0, 4, "Current Bias", text_color=color.white, bgcolor=color.new(color.orange, 40))
-    bias_color = current_nifty_bias == "BULL" ? color.new(color.green, 40) : current_nifty_bias == "BEAR" ? color.new(color.red, 40) : color.new(color.orange, 40)
-    table.cell(statusTable, 1, 4, current_nifty_bias, text_color=color.white, bgcolor=bias_color)
-    
-    // ENHANCED OVERLAP FILTER STATUS
-    table.cell(statusTable, 0, 5, "Overlap Filter", text_color=color.white, bgcolor=color.new(color.purple, 40))
-    overlap_status = enable_overlap_filter ? "ON" : "OFF"
-    table.cell(statusTable, 1, 5, overlap_status, text_color=color.white, bgcolor=enable_overlap_filter ? color.new(color.green, 40) : color.new(color.red, 40))
-    
-    table.cell(statusTable, 0, 6, "Any Trade Active", text_color=color.white, bgcolor=color.new(color.orange, 40))
-    active_status = any_strategy_active ? "YES" : "NO"
-    active_color = any_strategy_active ? color.new(color.red, 40) : color.new(color.green, 40)
-    table.cell(statusTable, 1, 6, active_status, text_color=color.white, bgcolor=active_color)
-    
-    table.cell(statusTable, 0, 7, "Auto Exit", text_color=color.white, bgcolor=color.new(color.orange, 40))
-    exit_auto_status = enable_auto_exit ? "ON" : "OFF"
-    table.cell(statusTable, 1, 7, exit_auto_status, text_color=color.white, bgcolor=enable_auto_exit ? color.new(color.green, 40) : color.new(color.red, 40))
-
-
-    // Signal overlap tracking
-    table.cell(statusTable, 0, 8, "Signals Count", text_color=color.white, bgcolor=color.new(color.yellow, 40))
-    table.cell(statusTable, 1, 8, str.tostring(signals_count), text_color=color.white, bgcolor=signals_count > 1 ? color.new(color.red, 40) : color.new(color.green, 40))
-    
-    // Overlap blocking status
-    table.cell(statusTable, 0, 9, "Overlap Blocks", text_color=color.white, bgcolor=color.new(color.red, 40))
-    blocks_status = overlap_filter_blocks_non_swing ? "YES" : "NO"
-    blocks_color = overlap_filter_blocks_non_swing ? color.new(color.red, 40) : color.new(color.green, 40)
-    table.cell(statusTable, 1, 9, blocks_status, text_color=color.white, bgcolor=blocks_color)
-    
-    // TBH Supertrend Activation Status
-    table.cell(statusTable, 0, 10, "TBH ST Activated", text_color=color.white, bgcolor=color.new(color.lime, 40))
-    tbh_activation_status = tbh_in_trade and tbh_supertrend_activated ? "YES" : "NO"
-    tbh_activation_color = tbh_in_trade and tbh_supertrend_activated ? color.new(color.green, 40) : color.new(color.gray, 40)
-    table.cell(statusTable, 1, 10, tbh_activation_status, text_color=color.white, bgcolor=tbh_activation_color)
-    
-    // TBH Current SL vs Initial SL
-    table.cell(statusTable, 0, 11, "TBH Current SL", text_color=color.white, bgcolor=color.new(color.lime, 40))
-    if tbh_in_trade
-        sl_color = tbh_supertrend_activated ? color.new(color.green, 40) : color.new(color.red, 40)
-        table.cell(statusTable, 1, 11, str.tostring(tbh_current_sl, "#.##"), text_color=color.white, bgcolor=sl_color)
-    else
-        table.cell(statusTable, 1, 11, "N/A", text_color=color.white, bgcolor=color.new(color.gray, 40))
-    
-    // TBH Initial SL
-    table.cell(statusTable, 0, 12, "TBH Initial SL", text_color=color.white, bgcolor=color.new(color.orange, 40))
-    if tbh_in_trade
-        table.cell(statusTable, 1, 12, str.tostring(tbh_initial_sl, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 40))
-    else
-        table.cell(statusTable, 1, 12, "N/A", text_color=color.white, bgcolor=color.new(color.gray, 40))
-    
-    // TBH Supertrend Current Value
-    table.cell(statusTable, 0, 13, "TBH Supertrend", text_color=color.white, bgcolor=color.new(color.lime, 40))
-    st_color = tbh_direction == -1 ? color.new(color.green, 40) : color.new(color.red, 40)
-    table.cell(statusTable, 1, 13, str.tostring(tbh_supertrend, "#.##"), text_color=color.white, bgcolor=st_color)
-
-    table.cell(statusTable, 0, 14, "TBH Fib 0 (0.382)", text_color=color.white, bgcolor=color.new(color.red, 40))
-    table.cell(statusTable, 1, 14, str.tostring(tbh_fib_level_0, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 40))
-
-    table.cell(statusTable, 0, 15, "TBH Fib 1 (0.618)", text_color=color.white, bgcolor=color.new(color.green, 40))
-    table.cell(statusTable, 1, 15, str.tostring(tbh_fib_level_1, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 40))
-    
-    // SL Streak status
-    table.cell(statusTable, 0, 16, "SL Streak", text_color=color.white, bgcolor=color.new(color.red, 40))
-    table.cell(statusTable, 1, 16, str.tostring(current_sl_streak) + "/" + str.tostring(max_sl_streak), text_color=color.white, bgcolor=color.new(color.gray, 40))
-    
-    table.cell(statusTable, 0, 17, "User", text_color=color.white, bgcolor=color.new(color.navy, 40))
-    table.cell(statusTable, 1, 17, user_login, text_color=color.white, bgcolor=color.new(color.gray, 40))
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // VISUAL PLOTTING - UPDATED FOR 3 STRATEGIES INCLUDING BIAS
@@ -2614,28 +2544,11 @@ if tbh_enable_alerts and enable_tbh_strategy
     if tbh_in_trade and tbh_supertrend_activated and not tbh_supertrend_activated[1]
         alert("TBH-TRAIL SUPERTREND ACTIVATED: Supertrend now controls trailing SL | ST Level: " + str.tostring(tbh_supertrend, "#.##") + " | Previous Initial SL: " + str.tostring(tbh_initial_sl, "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
-// Enhanced Overlap Filter Alerts (updated for 3 strategies)
-if overlap_detected
-    alert("SAME BAR OVERLAP: Multiple strategies signaled, priority given to BB>TBH-TRAIL>Breakout | Signals: " + str.tostring(signals_count) + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
-if active_trade_blocks
-    current_active = any_strategy_active ? (bb_in_trade ? "BB " : "") + (breakout_in_trade ? "BREAKOUT " : "") + (tbh_in_trade ? "TBH-TRAIL " : "") : "NONE"
-    alert("ACTIVE TRADE BLOCKS NEW SIGNAL: Current active: " + current_active + "| Blocked signals: " + str.tostring(signals_count) + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
-// Entry Blocking Alert
-if isEntryBlocked() and (bb_has_signal or breakout_has_signal or tbh_has_signal)
-    alert("ENTRY BLOCKED: No new entries allowed after 3:15 PM | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
-// Bias Confluence Alerts
-if bias_blocks_buy
-    alert("BIAS BLOCKS BUY SIGNAL: Current bias is " + current_nifty_bias + " but BUY signal detected | Bias confluence is enabled | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
-
-if bias_blocks_sell
-    alert("BIAS BLOCKS SELL SIGNAL: Current bias is " + current_nifty_bias + " but SELL signal detected | Bias confluence is enabled | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
 // Alert Conditions for all 3 strategies
-alertcondition(alert_above_upper and enable_bb_strategy, 'BB Alert Above Upper Band', 'BB Alert Candle Above Upper Band')
-alertcondition(alert_below_lower and enable_bb_strategy, 'BB Alert Below Lower Band', 'BB Alert Candle Below Lower Band')
 alertcondition(bb_sell_signal, 'BB Sell Entry Signal', 'BB Reversal SELL Entry')
 alertcondition(bb_buy_signal, 'BB Buy Entry Signal', 'BB Reversal BUY Entry')
 alertcondition(bb_tp_hit, 'BB Take Profit Hit', 'BB Take Profit Hit')
@@ -2650,21 +2563,11 @@ alertcondition(tbh_buy_condition and tbh_use_enhanced_entry, 'TBH-TRAIL Enhanced
 alertcondition(tbh_sell_condition and tbh_use_enhanced_entry, 'TBH-TRAIL Enhanced Sell Entry', 'TBH-TRAIL Sell Signal with Enhanced Entry Validation')
 alertcondition(tbh_tp_hit, 'TBH-TRAIL Take Profit', 'TBH-TRAIL Take Profit Hit')
 alertcondition(tbh_sl_hit, 'TBH-TRAIL Stop Loss', 'TBH-TRAIL Stop Loss Hit')
-alertcondition(tbh_in_trade and tbh_supertrend_activated and not tbh_supertrend_activated[1], 'TBH Supertrend Activation', 'TBH Supertrend Takes Over Trailing')
 
 alertcondition(tbh_buy_supertrend and enable_tbh_strategy, 'TBH Supertrend Buy Signal', 'TBH Supertrend Crossover Buy Signal')
 alertcondition(tbh_sell_supertrend and enable_tbh_strategy, 'TBH Supertrend Sell Signal', 'TBH Supertrend Crossunder Sell Signal')
 
-alertcondition(overlap_detected, 'Same Bar Overlap Filter', 'Multiple Strategy Signals Same Bar')
-alertcondition(active_trade_blocks, 'Active Trade Blocks Signal', 'New Signal Blocked by Active Trade')
-alertcondition(isEntryBlocked() and (bb_has_signal or breakout_has_signal or tbh_has_signal), 'Entry Blocked After 3:15 PM', 'New Entry Attempted After 3:15 PM')
 
-// Bias Confluence Alert Conditions
-alertcondition(bias_blocks_buy, 'Bias Blocks Buy Signal', 'Buy signal blocked due to unfavorable bias')
-alertcondition(bias_blocks_sell, 'Bias Blocks Sell Signal', 'Sell signal blocked due to unfavorable bias')
-alertcondition(current_nifty_bias == "BULL", 'Nifty Bias Bull', 'Nifty bias turned bullish')
-alertcondition(current_nifty_bias == "BEAR", 'Nifty Bias Bear', 'Nifty bias turned bearish')
-alertcondition(current_nifty_bias == "SIDEWAYS", 'Nifty Bias Sideways', 'Nifty bias is sideways')
 
 
 // SWING Alerts
