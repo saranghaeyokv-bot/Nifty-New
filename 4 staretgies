@@ -852,6 +852,8 @@ if bb_waiting_for_entry and enable_bb_strategy and not bb_in_trade and not isEnt
         if bb_enable_alerts
             alert("BB SELL Signal - Entry: " + str.tostring(bb_entry_price, "#.##") + " | SL: " + str.tostring(bb_stop_loss, "#.##") + " | TP: " + str.tostring(bb_take_profit, "#.##"), alert.freq_once_per_bar)
 
+
+
 // ═════════════════════════════════════════════════════════════════
 // BB TRADE EXIT LOGIC
 // ═════════════════════════════════════════════════════════════════
@@ -861,7 +863,7 @@ if bb_in_trade
     if bb_trade_type == "BUY"
         // TP hit
         if normal_close >= bb_take_profit
-            trade_points = normal_close - bb_entry_price
+            float trade_points = normal_close - bb_entry_price
             bb_tp_count += 1
             combined_total_tp_count += 1
             combined_total_tp_points += trade_points
@@ -881,7 +883,7 @@ if bb_in_trade
             
         // SL hit
         else if normal_close <= bb_stop_loss
-            trade_points = bb_entry_price - normal_close
+            float trade_points = bb_entry_price - normal_close
             bb_sl_count += 1
             combined_total_sl_count += 1
             combined_total_sl_points += trade_points
@@ -902,7 +904,7 @@ if bb_in_trade
     else if bb_trade_type == "SELL"
         // TP hit
         if normal_close <= bb_take_profit
-            trade_points = bb_entry_price - normal_close
+            float trade_points = bb_entry_price - normal_close
             bb_tp_count += 1
             combined_total_tp_count += 1
             combined_total_tp_points += trade_points
@@ -922,7 +924,7 @@ if bb_in_trade
             
         // SL hit
         else if normal_close >= bb_stop_loss
-            trade_points = normal_close - bb_entry_price
+            float trade_points = normal_close - bb_entry_price
             bb_sl_count += 1
             combined_total_sl_count += 1
             combined_total_sl_points += trade_points
@@ -942,11 +944,13 @@ if bb_in_trade
 
 // Auto Exit for BB
 if enable_auto_exit and isAfterAutoExitTime() and bb_in_trade
-    exit_price = normal_close
+    float exit_price = normal_close
+    float trade_points = na
+    
     if bb_trade_type == "BUY"
-        trade_points = exit_price - bb_entry_price
+        trade_points := exit_price - bb_entry_price
     else
-        trade_points = bb_entry_price - exit_price
+        trade_points := bb_entry_price - exit_price
     
     if trade_points > 0
         bb_tp_count += 1
@@ -2001,11 +2005,11 @@ var float bb_trade_points_tp = 0.0
 var float bb_trade_points_sl = 0.0
 
 // 3:15 PM Auto Exit for BB
-if bb_in_trade and isAfter315PM() 
-    bb_315_exit := true
-    bb_in_trade := false
+if bb_in_trade
     if bb_trade_type == "BUY"
-        bb_trade_points_tp := normal_close - bb_entry_price
+        // TP hit
+        if normal_close >= bb_take_profit
+            float trade_points = normal_close - bb_entry_price
     else
         bb_trade_points_tp := bb_entry_price - normal_close
 
