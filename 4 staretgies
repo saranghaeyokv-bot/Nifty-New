@@ -64,11 +64,6 @@ swing_auto_exit_hour = input.int(15, title="Swing Auto Exit Hour (24h format)", 
 swing_auto_exit_minute = input.int(15, title="Swing Auto Exit Minute", minval=0, maxval=59, step=15, group="Swing Auto Exit Settings")
 swing_block_entries_after_exit = input.bool(true, title="Block Swing Entries After Exit Time", group="Swing Auto Exit Settings")
 
-
-// STRATEGY START TIME SETTINGS
-bb_start_time = input.string("09:15", title="BB Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:45", "11:00"], group="Strategy Start Times")
-breakout_start_time = input.string("09:15", title="Breakout Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
-tbh_start_time = input.string("09:15", title="TBH Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
 swing_start_time = input.string("09:15", title="Swing Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -396,10 +391,6 @@ tbh_rsi_length = input.int(14, "RSI Length", group="Top Bottom Hunter Strategy")
 tbh_rsi_overbought = input.int(70, "RSI Overbought Level", group="Top Bottom Hunter Strategy")
 tbh_rsi_oversold = input.int(30, "RSI Oversold Level", group="Top Bottom Hunter Strategy")
 
-// Volume Settings
-tbh_volume_enabled = input.bool(true, title="Enable Volume Confirmation", group="Top Bottom Hunter Strategy")
-tbh_volume_ma_length = input.int(20, title="Volume MA Length", minval=5, maxval=50, group="Top Bottom Hunter Strategy")
-tbh_volume_multiplier = input.float(1.2, title="Volume Multiplier (Above MA)", minval=1.0, maxval=3.0, step=0.1, group="Top Bottom Hunter Strategy")
 
 // SUPERTREND SETTINGS FOR TBH - MATCHING REFERENCE SCRIPT
 tbh_supertrend_atr_length = input.int(1, title="Supertrend ATR Length", minval=1, group="Top Bottom Hunter Strategy")
@@ -552,10 +543,7 @@ isAfterStartTime(strategy_start_time) =>
     
     current_hour > start_hour or (current_hour == start_hour and current_minute >= start_minute)
 
-// Strategy-specific start time checks
-isBBStartTimeValid() => isAfterStartTime(bb_start_time)
-isBreakoutStartTimeValid() => isAfterStartTime(breakout_start_time)
-isTBHStartTimeValid() => isAfterStartTime(tbh_start_time)
+
 isSwingStartTimeValid() => isAfterStartTime(swing_start_time)
 
 
@@ -744,14 +732,14 @@ var bool bb_alert_is_above_upper = false
 var int bb_alert_bar_index = na
 
 // Update alert candle levels
-if alert_above_upper and enable_bb_strategy and barstate.isconfirmed and isBBStartTimeValid()
+if alert_above_upper and enable_bb_strategy and barstate.isconfirmed
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
     bb_alert_is_above_upper := true
     bb_alert_bar_index := bar_index
 
-if alert_below_lower and enable_bb_strategy and barstate.isconfirmed and isBBStartTimeValid()
+if alert_below_lower and enable_bb_strategy and barstate.isconfirmed
     bb_alert_candle_high := high
     bb_alert_candle_low := low
     bb_waiting_for_entry := true
@@ -855,7 +843,7 @@ var float breakout_entry_candle_low = na
 
 hgst_value = ta.highest(prd)[1]
 
-if array.size(phval) >= mintest and close > open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy() and isBreakoutStartTimeValid()
+if array.size(phval) >= mintest and close > open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy() 
     if close > hgst_value
         bomax = array.get(phval, 0)
         xx = 0
@@ -880,7 +868,7 @@ var float breakout_entry_candle_high = na
 
 lwst_value = ta.lowest(prd)[1]
 
-if array.size(plval) >= mintest and close < open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell() and isBreakoutStartTimeValid()
+if array.size(plval) >= mintest and close < open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell()
     if close < lwst_value
         bomin = array.get(plval, 0)
         xx = 0
@@ -930,9 +918,7 @@ tbh_fib_level_1 = tbh_swing_high - (tbh_fib_range * tbh_fib_1)
 // RSI
 tbh_rsi_value = ta.rsi(close, tbh_rsi_length)
 
-// Volume MA
-tbh_volume_ma = ta.sma(volume, tbh_volume_ma_length)
-tbh_volume_confirmed = volume > (tbh_volume_ma * tbh_volume_multiplier)
+
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // SUPERTREND CALCULATION - SMOOTH VERSION (MATCHING REFERENCE SCRIPT)
@@ -1256,13 +1242,11 @@ if swing_in_trade
 
 
 // TBH Entry Conditions - WITH ALL FILTERS (TIME, CANDLE COLOR, ENHANCED ENTRY, BIAS)
-tbh_buy_condition_base  = ta.crossover(tbh_rsi_value, tbh_rsi_oversold) and close > tbh_fib_level_1 and 
-                         (not tbh_volume_enabled or tbh_volume_confirmed) and not tbh_in_trade and 
+tbh_buy_condition_base  = ta.crossover(tbh_rsi_value, tbh_rsi_oversold) and close > tbh_fib_level_1 and not tbh_in_trade and 
                          enable_tbh_strategy and not isEntryBlocked() and 
                          isTBHCandleColorValid(true) and isTBHEnhancedEntryValid(true) and isBiasAllowedForBuy()
 
-tbh_sell_condition_base = ta.crossunder(tbh_rsi_value, tbh_rsi_overbought) and close < tbh_fib_level_0 and 
-                         (not tbh_volume_enabled or tbh_volume_confirmed) and not tbh_in_trade and 
+tbh_sell_condition_base = ta.crossunder(tbh_rsi_value, tbh_rsi_overbought) and close < tbh_fib_level_0 and not tbh_in_trade and 
                          enable_tbh_strategy and not isEntryBlocked() and 
                          isTBHCandleColorValid(false) and isTBHEnhancedEntryValid(false) and isBiasAllowedForSell()
 
@@ -2427,15 +2411,6 @@ bgcolor(swing_in_trade and swing_trade_type == "BUY" and enable_swing_strategy ?
 bgcolor(swing_green_star and not swing_in_trade and enable_swing_strategy ? color.new(color.blue, 90) : na, title="Swing Green Star Signal")
 bgcolor(swing_red_star and not swing_in_trade and enable_swing_strategy ? color.new(color.purple, 90) : na, title="Swing Red Star Signal")
 
-// Swing Bias Status Label (only when enabled)
-if enable_swing_strategy and swing_enable_bias_confluence and barstate.islast
-    swing_bias_color = swing_current_nifty_bias == "BULL" ? color.green : swing_current_nifty_bias == "BEAR" ? color.red : color.yellow
-    swing_bias_text = "SWING BIAS: " + swing_current_nifty_bias + "\n" + getSwingBiasSpreadInfo() + "\n" + getSwingBiasThresholdInfo()
-    
-    label.new(x=bar_index + 10, y=close, text=swing_bias_text, 
-              style=label.style_label_left, color=color.new(swing_bias_color, 20), 
-              textcolor=color.white, size=size.small, 
-              tooltip="Swing strategy uses separate bias calculation independent from other strategies")
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -2563,9 +2538,6 @@ alertcondition(tbh_buy_condition and tbh_use_enhanced_entry, 'TBH-TRAIL Enhanced
 alertcondition(tbh_sell_condition and tbh_use_enhanced_entry, 'TBH-TRAIL Enhanced Sell Entry', 'TBH-TRAIL Sell Signal with Enhanced Entry Validation')
 alertcondition(tbh_tp_hit, 'TBH-TRAIL Take Profit', 'TBH-TRAIL Take Profit Hit')
 alertcondition(tbh_sl_hit, 'TBH-TRAIL Stop Loss', 'TBH-TRAIL Stop Loss Hit')
-
-alertcondition(tbh_buy_supertrend and enable_tbh_strategy, 'TBH Supertrend Buy Signal', 'TBH Supertrend Crossover Buy Signal')
-alertcondition(tbh_sell_supertrend and enable_tbh_strategy, 'TBH Supertrend Sell Signal', 'TBH Supertrend Crossunder Sell Signal')
 
 
 
