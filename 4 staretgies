@@ -10,12 +10,12 @@ indicator('Nifty New + Bias', overlay=true, max_bars_back=501, max_lines_count=4
 // NORMAL CANDLE DATA FOR PNL CALCULATION - FIXED
 // ═════════════════════════════════════════════════════════════════
 
-// Get the base ticker without HA prefix
-base_ticker = str.replace(syminfo.tickerid, "HA:", "")
-normal_close = request.security(base_ticker, timeframe.period, close, lookahead=barmerge.lookahead_off)
-normal_high = request.security(base_ticker, timeframe.period, high, lookahead=barmerge.lookahead_off) 
-normal_low = request.security(base_ticker, timeframe.period, low, lookahead=barmerge.lookahead_off)
+// Get base ticker and fetch normal OHLC data for PnL calculations
+base_ticker = syminfo.prefix + ":" + syminfo.ticker
 normal_open = request.security(base_ticker, timeframe.period, open, lookahead=barmerge.lookahead_off)
+normal_high = request.security(base_ticker, timeframe.period, high, lookahead=barmerge.lookahead_off)
+normal_low = request.security(base_ticker, timeframe.period, low, lookahead=barmerge.lookahead_off)
+normal_close = request.security(base_ticker, timeframe.period, close, lookahead=barmerge.lookahead_off)
 
 
 var bool tbh_in_trade = false
@@ -716,14 +716,14 @@ is_band_stretched = if enable_stretch_filter
 else
     true
 
-// Alert candles based on band position
-alert_above_upper = low > bb_upper and is_band_stretched
-alert_below_lower = high < bb_lower and is_band_stretched
 
-// Determine candle color for visual purposes
-is_green_candle = close > open
-is_red_candle = close < open
+// Alert candles based on band position - using normal data
+alert_above_upper = normal_low > bb_upper and is_band_stretched
+alert_below_lower = normal_high < bb_lower and is_band_stretched
 
+// Determine candle color using normal data for performance
+is_green_candle = normal_close > normal_open
+is_red_candle = normal_close < normal_open
 // Store alert candle information
 var float bb_alert_candle_high = na
 var float bb_alert_candle_low = na
@@ -733,15 +733,15 @@ var int bb_alert_bar_index = na
 
 // Update alert candle levels
 if alert_above_upper and enable_bb_strategy and barstate.isconfirmed
-    bb_alert_candle_high := high
-    bb_alert_candle_low := low
+    bb_alert_candle_high := normal_high
+    bb_alert_candle_low := normal_low
     bb_waiting_for_entry := true
     bb_alert_is_above_upper := true
     bb_alert_bar_index := bar_index
 
 if alert_below_lower and enable_bb_strategy and barstate.isconfirmed
-    bb_alert_candle_high := high
-    bb_alert_candle_low := low
+    bb_alert_candle_high := normal_high
+    bb_alert_candle_low := normal_low
     bb_waiting_for_entry := true
     bb_alert_is_above_upper := false
     bb_alert_bar_index := bar_index
@@ -843,50 +843,50 @@ var float breakout_entry_candle_low = na
 
 hgst_value = ta.highest(prd)[1]
 
-if array.size(phval) >= mintest and close > open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy() 
-    if close > hgst_value
+if array.size(phval) >= mintest and normal_close > normal_open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForBuy()
+    if normal_close > hgst_value
         bomax = array.get(phval, 0)
         xx = 0
         for x = 0 to array.size(phval) - 1
-            if array.get(phval, x) >= close
-                break
+    if array.get(phval, x) >= normal_close
+        break
             xx := x
             bomax := math.max(bomax, array.get(phval, x))
-        if xx >= mintest and open <= bomax
+        if xx >= mintest and normal_open <= bomax
             num = 0
             for x = 0 to xx
                 if array.get(phval, x) <= bomax and array.get(phval, x) >= bomax - chwidth
                     num += 1
             if num >= mintest and hgst_value < bomax
-                points_above_zone = close - bomax
+                points_above_zone = normal_close - bomax
                 if points_above_zone >= min_points_above_zone
                     bullish_breakout_base := true
-                    breakout_entry_candle_low := low
+                    breakout_entry_candle_low := normal_low
 
 bearish_breakdown_base = false
 var float breakout_entry_candle_high = na
 
 lwst_value = ta.lowest(prd)[1]
 
-if array.size(plval) >= mintest and close < open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell()
-    if close < lwst_value
+if array.size(plval) >= mintest and normal_close < normal_open and enable_breakout_strategy and not isEntryBlocked() and isBiasAllowedForSell()
+    if normal_close < lwst_value
         bomin = array.get(plval, 0)
         xx = 0
         for x = 0 to array.size(plval) - 1
-            if array.get(plval, x) <= close
+            if array.get(plval, x) <= normal_close
                 break
             xx := x
             bomin := math.min(bomin, array.get(plval, x))
-        if xx >= mintest and open >= bomin
+        if xx >= mintest and normal_open >= bomin
             num1 = 0
             for x = 0 to xx
                 if array.get(plval, x) >= bomin and array.get(plval, x) <= bomin + chwidth
                     num1 += 1
             if num1 >= mintest and lwst_value > bomin
-                points_below_zone = bomin - close
+                points_below_zone = bomin - normal_close
                 if points_below_zone >= min_points_below_zone
                     bearish_breakdown_base := true
-                    breakout_entry_candle_high := high
+                    breakout_entry_candle_high := normal_high
 
 // Breakout Trade Management Variables
 var bool breakout_in_trade = false
@@ -908,7 +908,7 @@ var float breakout_trade_points_sl = 0.0
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // Swing High/Low for Fib
-tbh_swing_high = ta.highest(high, tbh_swing_len)
+tbh_swing_high = ta.highest(normal_high, tbh_swing_len)
 tbh_swing_low  = ta.lowest(low, tbh_swing_len)
 tbh_fib_range  = tbh_swing_high - tbh_swing_low
 
@@ -1167,7 +1167,7 @@ any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing
 if swing_final_buy_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "BUY"
-    swing_entry_price := close
+    swing_entry_price := normal_close
     swing_entry_bar := bar_index
     swing_star_count_since_entry := 0
     
@@ -1181,31 +1181,33 @@ if swing_final_buy_signal and not swing_in_trade
     
     // Alert
     if swing_enable_alerts
-        alert("Swing BUY Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
+        alert("Swing BUY Signal - Entry: " + str.tostring(normal_close, "#.##"), alert.freq_once_per_bar)
 
 if swing_final_sell_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "SELL"
-    swing_entry_price := close
+    swing_entry_price := normal_close
     swing_entry_bar := bar_index
     swing_star_count_since_entry := 0
+    
     
     // Calculate stop loss and take profit
     if swing_use_star_based_exit
         swing_stop_loss := na
         swing_take_profit := na
     else
-        swing_stop_loss := close + swing_fixed_sl_points
-        swing_take_profit := close - swing_fixed_tp_points
+        swing_stop_loss := normal_close - swing_fixed_sl_points
+        swing_take_profit := normal_close + swing_fixed_tp_points
     
     // Alert
     if swing_enable_alerts
-        alert("Swing SELL Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
+        alert("Swing SELL Signal - Entry: " + str.tostring(normal_close, "#.##"), alert.freq_once_per_bar)
 
 // Dual ATR trailing stop logic
+// Dual ATR trailing stop logic using normal data
 swing_atr = ta.atr(swing_atr_trail_period)
-swing_long_stop_raw = low - swing_atr_trail_mult * swing_atr
-swing_short_stop_raw = high + swing_atr_trail_mult * swing_atr
+swing_long_stop_raw = normal_low - swing_atr_trail_mult * swing_atr
+swing_short_stop_raw = normal_high + swing_atr_trail_mult * swing_atr
 
 var float swing_lower_atr_trail = na
 var float swing_upper_atr_trail = na
