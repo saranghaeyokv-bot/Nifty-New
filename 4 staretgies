@@ -790,6 +790,194 @@ calculateSmartSL(entryPrice, alertHigh, alertLow, isBuy, maxPoints, buffer) =>
     
     [smartSL, method]
 
+
+
+
+
+// ═════════════════════════════════════════════════════════════════
+// BB TRADE ENTRY LOGIC
+// ═════════════════════════════════════════════════════════════════
+
+// BB Trade Entries
+if bb_waiting_for_entry and enable_bb_strategy and not bb_in_trade and not isEntryBlocked()
+    // BUY signal: close breaks below lower band after alert above upper
+    if not bb_alert_is_above_upper and normal_close < bb_lower and isBiasAllowedForBuy()
+        bb_in_trade := true
+        bb_trade_type := "BUY"
+        bb_entry_price := normal_close
+        bb_entry_bar_index := bar_index
+        bb_take_profit := bb_entry_price + tp_points
+        
+        // Calculate stop loss based on type
+        if bb_sl_type == "Smart SL (Min Risk)"
+            [sl_level, method] = calculateSmartSL(bb_entry_price, bb_alert_candle_high, bb_alert_candle_low, true, bb_fixed_sl_points, bb_sl_buffer)
+            bb_stop_loss := sl_level
+            bb_sl_method := method
+        else if bb_sl_type == "Candle Based"
+            bb_stop_loss := bb_alert_candle_low - bb_sl_buffer
+            bb_sl_method := "Candle"
+        else
+            bb_stop_loss := bb_entry_price - bb_fixed_sl_points
+            bb_sl_method := "Fixed"
+        
+        bb_waiting_for_entry := false
+        
+        // Alert
+        if bb_enable_alerts
+            alert("BB BUY Signal - Entry: " + str.tostring(bb_entry_price, "#.##") + " | SL: " + str.tostring(bb_stop_loss, "#.##") + " | TP: " + str.tostring(bb_take_profit, "#.##"), alert.freq_once_per_bar)
+        
+    // SELL signal: close breaks above upper band after alert below lower
+    else if bb_alert_is_above_upper and normal_close > bb_upper and isBiasAllowedForSell()
+        bb_in_trade := true
+        bb_trade_type := "SELL"
+        bb_entry_price := normal_close
+        bb_entry_bar_index := bar_index
+        bb_take_profit := bb_entry_price - tp_points
+        
+        // Calculate stop loss based on type
+        if bb_sl_type == "Smart SL (Min Risk)"
+            [sl_level, method] = calculateSmartSL(bb_entry_price, bb_alert_candle_high, bb_alert_candle_low, false, bb_fixed_sl_points, bb_sl_buffer)
+            bb_stop_loss := sl_level
+            bb_sl_method := method
+        else if bb_sl_type == "Candle Based"
+            bb_stop_loss := bb_alert_candle_high + bb_sl_buffer
+            bb_sl_method := "Candle"
+        else
+            bb_stop_loss := bb_entry_price + bb_fixed_sl_points
+            bb_sl_method := "Fixed"
+        
+        bb_waiting_for_entry := false
+        
+        // Alert
+        if bb_enable_alerts
+            alert("BB SELL Signal - Entry: " + str.tostring(bb_entry_price, "#.##") + " | SL: " + str.tostring(bb_stop_loss, "#.##") + " | TP: " + str.tostring(bb_take_profit, "#.##"), alert.freq_once_per_bar)
+
+// ═════════════════════════════════════════════════════════════════
+// BB TRADE EXIT LOGIC
+// ═════════════════════════════════════════════════════════════════
+
+// BB Trade Exits
+if bb_in_trade
+    if bb_trade_type == "BUY"
+        // TP hit
+        if normal_close >= bb_take_profit
+            trade_points = normal_close - bb_entry_price
+            bb_tp_count += 1
+            combined_total_tp_count += 1
+            combined_total_tp_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, true)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "BB")
+            
+            bb_in_trade := false
+            
+            // Alert
+            if bb_enable_alerts
+                alert("BB BUY TP Hit - Profit: +" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+            
+        // SL hit
+        else if normal_close <= bb_stop_loss
+            trade_points = bb_entry_price - normal_close
+            bb_sl_count += 1
+            combined_total_sl_count += 1
+            combined_total_sl_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, false)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "BB")
+            
+            bb_in_trade := false
+            
+            // Alert
+            if bb_enable_alerts
+                alert("BB BUY SL Hit - Loss: -" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+            
+    else if bb_trade_type == "SELL"
+        // TP hit
+        if normal_close <= bb_take_profit
+            trade_points = bb_entry_price - normal_close
+            bb_tp_count += 1
+            combined_total_tp_count += 1
+            combined_total_tp_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, true)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "BB")
+            
+            bb_in_trade := false
+            
+            // Alert
+            if bb_enable_alerts
+                alert("BB SELL TP Hit - Profit: +" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+            
+        // SL hit
+        else if normal_close >= bb_stop_loss
+            trade_points = normal_close - bb_entry_price
+            bb_sl_count += 1
+            combined_total_sl_count += 1
+            combined_total_sl_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, false)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "BB")
+            
+            bb_in_trade := false
+            
+            // Alert
+            if bb_enable_alerts
+                alert("BB SELL SL Hit - Loss: -" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+
+// Auto Exit for BB
+if enable_auto_exit and isAfterAutoExitTime() and bb_in_trade
+    exit_price = normal_close
+    if bb_trade_type == "BUY"
+        trade_points = exit_price - bb_entry_price
+    else
+        trade_points = bb_entry_price - exit_price
+    
+    if trade_points > 0
+        bb_tp_count += 1
+        combined_total_tp_count += 1
+        combined_total_tp_points += trade_points
+        
+        // Add to tracking arrays
+        array.unshift(combined_trade_months, month(time))
+        array.unshift(combined_trade_years, year(time))
+        array.unshift(combined_trade_was_tp, true)
+        array.unshift(combined_trade_points, trade_points)
+        array.unshift(combined_trade_strategy, "BB")
+    else
+        bb_sl_count += 1
+        combined_total_sl_count += 1
+        combined_total_sl_points += math.abs(trade_points)
+        
+        // Add to tracking arrays
+        array.unshift(combined_trade_months, month(time))
+        array.unshift(combined_trade_years, year(time))
+        array.unshift(combined_trade_was_tp, false)
+        array.unshift(combined_trade_points, math.abs(trade_points))
+        array.unshift(combined_trade_strategy, "BB")
+    
+    bb_in_trade := false
+    
+    // Alert
+    if bb_enable_alerts
+        alert("BB Auto Exit - " + bb_trade_type + " - Points: " + str.tostring(trade_points, "#.##"), alert.freq_once_per_bar)
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // BREAKOUT STRATEGY CALCULATIONS
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -850,8 +1038,8 @@ if array.size(phval) >= mintest and normal_close > normal_open and enable_breako
         bomax = array.get(phval, 0)
         xx = 0
         for x = 0 to array.size(phval) - 1
-    if array.get(phval, x) >= normal_close
-        break
+            if array.get(phval, x) >= normal_close
+                break
             xx := x
             bomax := math.max(bomax, array.get(phval, x))
         if xx >= mintest and normal_open <= bomax
@@ -904,6 +1092,200 @@ var bool breakout_auto_tp_hit_alert = false
 var bool breakout_315_exit = false
 var float breakout_trade_points_tp = 0.0
 var float breakout_trade_points_sl = 0.0
+
+
+
+
+// ═════════════════════════════════════════════════════════════════
+// BREAKOUT TRADE ENTRY LOGIC
+// ═════════════════════════════════════════════════════════════════
+
+// Breakout Trade Entries
+if bullish_breakout_base and enable_breakout_strategy and not breakout_in_trade and not isEntryBlocked() and isBiasAllowedForBuy()
+    breakout_in_trade := true
+    breakout_trade_type := "BUY"
+    breakout_entry_price := normal_close
+    breakout_entry_bar_index := bar_index
+    
+    // Set stop loss based on type
+    if breakout_sl_type == "Entry Candle Low"
+        breakout_stop_loss := breakout_entry_candle_low - entry_candle_buffer
+    else if breakout_sl_type == "Fixed Points"
+        breakout_stop_loss := breakout_entry_price - breakout_fixed_sl_points
+    else // ATR Trailing
+        breakout_stop_loss := TS
+    
+    // Alert
+    if breakout_enable_alerts
+        alert("Breakout BUY Signal - Entry: " + str.tostring(breakout_entry_price, "#.##") + " | SL: " + str.tostring(breakout_stop_loss, "#.##"), alert.freq_once_per_bar)
+
+if bearish_breakdown_base and enable_breakout_strategy and not breakout_in_trade and not isEntryBlocked() and isBiasAllowedForSell()
+    breakout_in_trade := true
+    breakout_trade_type := "SELL"
+    breakout_entry_price := normal_close
+    breakout_entry_bar_index := bar_index
+    
+    // Set stop loss based on type
+    if breakout_sl_type == "Entry Candle Low"
+        breakout_stop_loss := breakout_entry_candle_high + entry_candle_buffer
+    else if breakout_sl_type == "Fixed Points"
+        breakout_stop_loss := breakout_entry_price + breakout_fixed_sl_points
+    else // ATR Trailing
+        breakout_stop_loss := TS
+    
+    // Alert
+    if breakout_enable_alerts
+        alert("Breakout SELL Signal - Entry: " + str.tostring(breakout_entry_price, "#.##") + " | SL: " + str.tostring(breakout_stop_loss, "#.##"), alert.freq_once_per_bar)
+
+// ═════════════════════════════════════════════════════════════════
+// BREAKOUT TRADE EXIT LOGIC
+// ═════════════════════════════════════════════════════════════════
+
+// Breakout Trade Exits
+if breakout_in_trade
+    if breakout_trade_type == "BUY"
+        // SL hit
+        if normal_close <= breakout_stop_loss
+            trade_points = breakout_entry_price - normal_close
+            breakout_sl_count += 1
+            combined_total_sl_count += 1
+            combined_total_sl_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, false)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "Breakout")
+            
+            breakout_in_trade := false
+            
+            // Alert
+            if breakout_enable_alerts
+                alert("Breakout BUY SL Hit - Loss: -" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+            
+        // Auto TP at specified time
+        else if is_auto_tp_time
+            trade_points = normal_close - breakout_entry_price
+            if trade_points > 0
+                breakout_tp_count += 1
+                combined_total_tp_count += 1
+                combined_total_tp_points += trade_points
+                
+                // Add to tracking arrays
+                array.unshift(combined_trade_months, month(time))
+                array.unshift(combined_trade_years, year(time))
+                array.unshift(combined_trade_was_tp, true)
+                array.unshift(combined_trade_points, trade_points)
+                array.unshift(combined_trade_strategy, "Breakout")
+            else
+                breakout_sl_count += 1
+                combined_total_sl_count += 1
+                combined_total_sl_points += math.abs(trade_points)
+                
+                // Add to tracking arrays
+                array.unshift(combined_trade_months, month(time))
+                array.unshift(combined_trade_years, year(time))
+                array.unshift(combined_trade_was_tp, false)
+                array.unshift(combined_trade_points, math.abs(trade_points))
+                array.unshift(combined_trade_strategy, "Breakout")
+            
+            breakout_in_trade := false
+            
+            // Alert
+            if breakout_enable_alerts
+                alert("Breakout BUY Auto TP - Points: " + str.tostring(trade_points, "#.##"), alert.freq_once_per_bar)
+            
+    else if breakout_trade_type == "SELL"
+        // SL hit
+        if normal_close >= breakout_stop_loss
+            trade_points = normal_close - breakout_entry_price
+            breakout_sl_count += 1
+            combined_total_sl_count += 1
+            combined_total_sl_points += trade_points
+            
+            // Add to tracking arrays
+            array.unshift(combined_trade_months, month(time))
+            array.unshift(combined_trade_years, year(time))
+            array.unshift(combined_trade_was_tp, false)
+            array.unshift(combined_trade_points, trade_points)
+            array.unshift(combined_trade_strategy, "Breakout")
+            
+            breakout_in_trade := false
+            
+            // Alert
+            if breakout_enable_alerts
+                alert("Breakout SELL SL Hit - Loss: -" + str.tostring(trade_points, "#.##") + " points", alert.freq_once_per_bar)
+            
+        // Auto TP at specified time
+        else if is_auto_tp_time
+            trade_points = breakout_entry_price - normal_close
+            if trade_points > 0
+                breakout_tp_count += 1
+                combined_total_tp_count += 1
+                combined_total_tp_points += trade_points
+                
+                // Add to tracking arrays
+                array.unshift(combined_trade_months, month(time))
+                array.unshift(combined_trade_years, year(time))
+                array.unshift(combined_trade_was_tp, true)
+                array.unshift(combined_trade_points, trade_points)
+                array.unshift(combined_trade_strategy, "Breakout")
+            else
+                breakout_sl_count += 1
+                combined_total_sl_count += 1
+                combined_total_sl_points += math.abs(trade_points)
+                
+                // Add to tracking arrays
+                array.unshift(combined_trade_months, month(time))
+                array.unshift(combined_trade_years, year(time))
+                array.unshift(combined_trade_was_tp, false)
+                array.unshift(combined_trade_points, math.abs(trade_points))
+                array.unshift(combined_trade_strategy, "Breakout")
+            
+            breakout_in_trade := false
+            
+            // Alert
+            if breakout_enable_alerts
+                alert("Breakout SELL Auto TP - Points: " + str.tostring(trade_points, "#.##"), alert.freq_once_per_bar)
+
+// Auto Exit for Breakout
+if enable_auto_exit and isAfterAutoExitTime() and breakout_in_trade
+    exit_price = normal_close
+    if breakout_trade_type == "BUY"
+        trade_points = exit_price - breakout_entry_price
+    else
+        trade_points = breakout_entry_price - exit_price
+    
+    if trade_points > 0
+        breakout_tp_count += 1
+        combined_total_tp_count += 1
+        combined_total_tp_points += trade_points
+        
+        // Add to tracking arrays
+        array.unshift(combined_trade_months, month(time))
+        array.unshift(combined_trade_years, year(time))
+        array.unshift(combined_trade_was_tp, true)
+        array.unshift(combined_trade_points, trade_points)
+        array.unshift(combined_trade_strategy, "Breakout")
+    else
+        breakout_sl_count += 1
+        combined_total_sl_count += 1
+        combined_total_sl_points += math.abs(trade_points)
+        
+        // Add to tracking arrays
+        array.unshift(combined_trade_months, month(time))
+        array.unshift(combined_trade_years, year(time))
+        array.unshift(combined_trade_was_tp, false)
+        array.unshift(combined_trade_points, math.abs(trade_points))
+        array.unshift(combined_trade_strategy, "Breakout")
+    
+    breakout_in_trade := false
+    
+    // Alert
+    if breakout_enable_alerts
+        alert("Breakout Auto Exit - " + breakout_trade_type + " - Points: " + str.tostring(trade_points, "#.##"), alert.freq_once_per_bar)
+
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TOP BOTTOM HUNTER WITH PURE SUPERTREND TRAILING - NO FIXED TP
@@ -1168,8 +1550,28 @@ swing_final_sell_signal = swing_hat_sell_signal and swing_bias_allowed_sell and 
 if swing_final_buy_signal or swing_final_sell_signal
     swing_signal_this_bar := true
 
-// Update any_strategy_active to include swing strategy
+
+
+
 any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
+
+// Reset signal flags each bar
+bb_signal_this_bar := false
+breakout_signal_this_bar := false
+tbh_signal_this_bar := false
+swing_signal_this_bar := false
+
+// Update signal flags when trades are entered
+if bb_in_trade
+    bb_signal_this_bar := true
+if breakout_in_trade
+    breakout_signal_this_bar := true
+if tbh_in_trade
+    tbh_signal_this_bar := true
+if swing_in_trade
+    swing_signal_this_bar := true
+
+
 
 // Swing strategy trade entries with overlap filter
 if swing_final_buy_signal and not swing_in_trade
