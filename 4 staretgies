@@ -592,26 +592,27 @@ isSwingEntryBlocked() =>
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // TBH Candle Color Validation
+// TBH Candle Color Validation using normal data
 isTBHCandleColorValid(isBuySignal) =>
     if not tbh_use_candle_color
         true
     else
         if isBuySignal
-            close > open  // Green candle for BUY
+            normal_close > normal_open  // Green candle for BUY
         else
-            close < open  // Red candle for SELL
+            normal_close < normal_open  // Red candle for SELL
 
 // TBH Enhanced Entry Validation with Buffer
 isTBHEnhancedEntryValid(isBuySignal) =>
     if not tbh_use_enhanced_entry
         true
     else
-        // Get previous candle info
-        prev_was_green = close[1] > open[1]
-        prev_was_red = close[1] < open[1]
-        prev_close = close[1]
-        prev_open = open[1]
-        current_close = close
+        // Get previous candle info using normal data
+        prev_was_green = normal_close[1] > normal_open[1]
+        prev_was_red = normal_close[1] < normal_open[1]
+        prev_close = normal_close[1]
+        prev_open = normal_open[1]
+        current_close = normal_close
         buffer_points = tbh_enhanced_entry_buffer
         
         if isBuySignal
@@ -794,16 +795,17 @@ calculateSmartSL(entryPrice, alertHigh, alertLow, isBuy, maxPoints, buffer) =>
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // ATR Trailing calculation for breakout
-Prev = ta.highest(high - Mult * ta.atr(Atr), Hhv)
+// ATR Trailing calculation using normal data
+Prev = ta.highest(normal_high - Mult * ta.atr(Atr), Hhv)
 cum_1 = ta.cum(1)
-highest_1 = ta.highest(high - Mult * ta.atr(Atr), Hhv)
-highest_2 = ta.highest(high - Mult * ta.atr(Atr), Hhv)
-iff_1 = close > highest_1 and close > close[1] ? highest_2 : Prev
-TS = cum_1 < 16 ? close : iff_1
-iff_2 = close < TS ? color.red : color.black
-Color = close > TS ? color.green : iff_2
-Buy_ATR = ta.crossover(close, TS)
-Sell_ATR = ta.crossunder(close, TS)
+highest_1 = ta.highest(normal_high - Mult * ta.atr(Atr), Hhv)
+highest_2 = ta.highest(normal_high - Mult * ta.atr(Atr), Hhv)
+iff_1 = normal_close > highest_1 and normal_close > normal_close[1] ? highest_2 : Prev
+TS = cum_1 < 16 ? normal_close : iff_1
+iff_2 = normal_close < TS ? color.red : color.black
+Color = normal_close > TS ? color.green : iff_2
+Buy_ATR = ta.crossover(normal_close, TS)
+Sell_ATR = ta.crossunder(normal_close, TS)
 is_auto_tp_time = auto_tp_time and isAfterAutoExitTime()
 
 lll = math.max(math.min(bar_index, 300), 1)
@@ -811,8 +813,8 @@ h_value = ta.highest(lll)
 l_value = ta.lowest(lll)
 chwidth = (h_value - l_value) * cwidthu
 
-ph = ta.pivothigh(high, prd, prd)
-pl = ta.pivotlow(low, prd, prd)
+ph = ta.pivothigh(normal_high, prd, prd)
+pl = ta.pivotlow(normal_low, prd, prd)
 
 var phval = array.new_float(0)
 var phloc = array.new_int(0)
@@ -908,15 +910,16 @@ var float breakout_trade_points_sl = 0.0
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // Swing High/Low for Fib
+// Swing High/Low for Fib - use normal data for performance
 tbh_swing_high = ta.highest(normal_high, tbh_swing_len)
-tbh_swing_low  = ta.lowest(low, tbh_swing_len)
+tbh_swing_low  = ta.lowest(normal_low, tbh_swing_len)
 tbh_fib_range  = tbh_swing_high - tbh_swing_low
 
 tbh_fib_level_0 = tbh_swing_high - (tbh_fib_range * tbh_fib_0)
 tbh_fib_level_1 = tbh_swing_high - (tbh_fib_range * tbh_fib_1)
 
 // RSI
-tbh_rsi_value = ta.rsi(close, tbh_rsi_length)
+tbh_rsi_value = ta.rsi(normal_close, tbh_rsi_length)
 
 
 
@@ -926,7 +929,7 @@ tbh_rsi_value = ta.rsi(close, tbh_rsi_length)
 
 // ATR and median price for Supertrend
 tbh_atr_value = ta.atr(tbh_supertrend_atr_length)
-tbh_hl2 = (high + low) / 2
+tbh_hl2 = (normal_high + normal_low) / 2
 
 // Calculate basic bands
 tbh_basic_upperband = tbh_hl2 + (tbh_supertrend_multiplier * tbh_atr_value)
@@ -937,24 +940,29 @@ var float tbh_upperband = na
 var float tbh_lowerband = na
 
 // Upper band smoothing - only moves up, never down when in uptrend
-tbh_upperband := tbh_basic_upperband < nz(tbh_upperband[1], tbh_basic_upperband) or close[1] > nz(tbh_upperband[1], tbh_basic_upperband) ? tbh_basic_upperband : nz(tbh_upperband[1], tbh_basic_upperband)
+tbh_upperband := tbh_basic_upperband < nz(tbh_upperband[1], tbh_basic_upperband) or normal_close[1] > nz(tbh_upperband[1], tbh_basic_upperband) ? tbh_basic_upperband : nz(tbh_upperband[1], tbh_basic_upperband)
+
 
 // Lower band smoothing - only moves down, never up when in downtrend  
-tbh_lowerband := tbh_basic_lowerband > nz(tbh_lowerband[1], tbh_basic_lowerband) or close[1] < nz(tbh_lowerband[1], tbh_basic_lowerband) ? tbh_basic_lowerband : nz(tbh_lowerband[1], tbh_basic_lowerband)
+tbh_lowerband := tbh_basic_lowerband > nz(tbh_lowerband[1], tbh_basic_lowerband) or normal_close[1] < nz(tbh_lowerband[1], tbh_basic_lowerband) ? tbh_basic_lowerband : nz(tbh_lowerband[1], tbh_basic_lowerband)
+
+
 
 // Supertrend calculation with smoothed bands
 var float tbh_supertrend = na
 var int tbh_direction = 1
 
 // Direction logic
-tbh_direction := close > nz(tbh_upperband[1], tbh_upperband) ? -1 : close < nz(tbh_lowerband[1], tbh_lowerband) ? 1 : nz(tbh_direction[1], 1)
+tbh_direction := normal_close > nz(tbh_upperband[1], tbh_upperband) ? -1 : normal_close < nz(tbh_lowerband[1], tbh_lowerband) ? 1 : nz(tbh_direction[1], 1)
+
+
 
 // Supertrend value
 tbh_supertrend := tbh_direction == -1 ? tbh_lowerband : tbh_upperband
 
 // Supertrend crossover signals
-tbh_buy_supertrend = ta.crossover(close, tbh_supertrend)
-tbh_sell_supertrend = ta.crossunder(close, tbh_supertrend)
+tbh_buy_supertrend = ta.crossover(normal_close, tbh_supertrend)
+tbh_sell_supertrend = ta.crossunder(normal_close, tbh_supertrend)
 
 // ═════════════════════════════════════════════════════════════════
 // SWING (HEIKIN ASHI) STRATEGY CALCULATIONS
