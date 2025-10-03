@@ -29,7 +29,7 @@ var int tbh_entry_bar_index = na
 var float tbh_entry_candle_low = na
 var float tbh_entry_candle_high = na
 var bool tbh_using_fixed_tp = false  // Track which TP mode is active
-
+var float trade_points = normal_close - bb_entry_price
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // STRATEGY ENABLE/DISABLE TOGGLES
