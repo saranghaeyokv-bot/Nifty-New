@@ -607,10 +607,10 @@ isSwingEntryBlocked() =>
 
 
 // Check if current candle is first candle before 9:21
-isFirstCandleBefore921() =>
+isFirstCandleBefore926() =>
     current_hour = hour(time, 'GMT+5:30')
     current_minute = minute(time, 'GMT+5:30')
-    current_hour == 9 and current_minute <= 20
+    current_hour == 9 and current_minute <= 26
 
 // Check if SL or TP hit in current candle
 isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
@@ -1030,7 +1030,7 @@ swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 
 
 // Define swing_signal_allowed with re-entry logic
-swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore921() and dayofmonth(time) != swing_last_exit_day
+swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore926() and dayofmonth(time) != swing_last_exit_day
 
 swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
@@ -1250,7 +1250,7 @@ if swing_sell_signal and not swing_in_trade
 
 // SWING RE-ENTRY VISUAL ELEMENTS
 if swing_show_reentry_labels or swing_show_reentry_levels
-    swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore921() and dayofmonth(time) != swing_last_exit_day
+    swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore926() and dayofmonth(time) != swing_last_exit_day
 
     // Re-entry BUY labels and levels
     if swing_buy_signal and swing_re_entry_allowed and barstate.isconfirmed
