@@ -606,6 +606,7 @@ isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
 
 // Reset re-entry flag on new day
 if dayofweek != dayofweek[1] and barstate.isconfirmed
+    swing_re_entry_done_today := false
     
 
 
@@ -614,7 +615,8 @@ if dayofweek != dayofweek[1] and barstate.isconfirmed
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // TBH Candle Color Validation
-isTBHCandleColorValid(isBuySignal) => if not tbh_use_candle_color
+isTBHCandleColorValid(isBuySignal) =>
+    if not tbh_use_candle_color
         true
     else
         if isBuySignal
