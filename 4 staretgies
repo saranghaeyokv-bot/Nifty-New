@@ -606,6 +606,7 @@ isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
 
 // Reset re-entry flag on new day
 if dayofweek != dayofweek[1] and barstate.isconfirmed
+    swing_re_entry_done_today := false
     
 
 
@@ -1017,10 +1018,7 @@ swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 
 
 // Define swing_signal_allowed with re-entry logic
-swing_re_entry_allowed = swing_last_exit_by_auto and 
-                        not swing_re_entry_done_today and 
-                        isFirstCandleBefore921() and 
-                        dayofmonth(time) != swing_last_exit_day
+swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore921() and dayofmonth(time) != swing_last_exit_day
 
 swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
