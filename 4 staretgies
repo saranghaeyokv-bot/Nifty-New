@@ -606,7 +606,6 @@ isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
 
 // Reset re-entry flag on new day
 if dayofweek != dayofweek[1] and barstate.isconfirmed
-    swing_re_entry_done_today := false
     
 
 
@@ -1018,7 +1017,10 @@ swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 
 
 // Define swing_signal_allowed with re-entry logic
-swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore921() and dayofmonth(time) != swing_last_exit_day
+swing_re_entry_allowed = swing_last_exit_by_auto and 
+                        not swing_re_entry_done_today and 
+                        isFirstCandleBefore921() and 
+                        dayofmonth(time) != swing_last_exit_day
 
 swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
@@ -1055,12 +1057,8 @@ if barstate.isconfirmed and swing_re_entry_allowed and not swing_in_trade
 // Basic swing signal logic based on Heikin Ashi T3 calculations
 if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed and not swing_buy_signal and not swing_sell_signal
     // Example signal conditions - adjust these based on your specific HAT strategy
-    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
-    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
-    
-    // Example signal conditions - adjust these based on your specific HAT strategy
-    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
-    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
+    var swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
+    var swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
     
     // Apply bias confluence if enabled
     if swing_buy_condition and isSwingBiasAllowedForBuy()
@@ -1068,6 +1066,8 @@ if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed and n
     
     if swing_sell_condition and isSwingBiasAllowedForSell()
         swing_sell_signal := true
+
+
 
 
 // Process swing entry signals (including re-entry)
