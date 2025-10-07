@@ -66,6 +66,16 @@ swing_block_entries_after_exit = input.bool(true, title="Block Swing Entries Aft
 
 swing_start_time = input.string("09:15", title="Swing Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
 
+
+
+// SWING AUTO EXIT RE-ENTRY TRACKING VARIABLES
+var bool swing_last_exit_by_auto = false
+var string swing_last_exit_trade_type = ""
+var bool swing_re_entry_done_today = false
+var int swing_last_exit_day = na
+
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // NIFTY BIAS CONFLUENCE CALCULATION - TOP 20 STOCKS
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -701,11 +711,6 @@ var float swing_trade_points_tp = 0.0
 var float swing_trade_points_sl = 0.0
 var float swing_stop_loss = na
 var float swing_take_profit = na
-// SWING AUTO EXIT RE-ENTRY TRACKING VARIABLES
-var bool swing_last_exit_by_auto = false
-var string swing_last_exit_trade_type = ""
-var bool swing_re_entry_done_today = false
-var int swing_last_exit_day = na
 
 
 
@@ -1058,6 +1063,8 @@ if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed and n
     var swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
     var swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
     
+
+    
     // Apply bias confluence if enabled
     if swing_buy_condition and isSwingBiasAllowedForBuy()
         swing_buy_signal := true
@@ -1098,9 +1105,6 @@ if (swing_buy_signal or swing_sell_signal) and not swing_in_trade and barstate.i
 
 
 
-
-    swing_buy_signal := swing_buy_condition and isSwingBiasAllowedForBuy()
-    swing_sell_signal := swing_sell_condition and isSwingBiasAllowedForSell()
 
 // SWING ENTRY PROCESSING
 if swing_buy_signal and not swing_in_trade
