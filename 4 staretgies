@@ -606,7 +606,7 @@ isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
 
 // Reset re-entry flag on new day
 if dayofweek != dayofweek[1] and barstate.isconfirmed
-    swing_re_entry_done_today := false
+    
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -614,8 +614,7 @@ if dayofweek != dayofweek[1] and barstate.isconfirmed
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 // TBH Candle Color Validation
-isTBHCandleColorValid(isBuySignal) =>
-    if not tbh_use_candle_color
+isTBHCandleColorValid(isBuySignal) => if not tbh_use_candle_color
         true
     else
         if isBuySignal
@@ -1017,10 +1016,7 @@ swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 
 
 // Define swing_signal_allowed with re-entry logic
-swing_re_entry_allowed = swing_last_exit_by_auto and 
-                        not swing_re_entry_done_today and 
-                        isFirstCandleBefore921() and 
-                        dayofmonth(time) != swing_last_exit_day
+swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore921() and dayofmonth(time) != swing_last_exit_day
 
 swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
@@ -1056,6 +1052,10 @@ if barstate.isconfirmed and swing_re_entry_allowed and not swing_in_trade
 
 // Basic swing signal logic based on Heikin Ashi T3 calculations
 if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed and not swing_buy_signal and not swing_sell_signal
+    // Example signal conditions - adjust these based on your specific HAT strategy
+    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
+    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
+    
     // Example signal conditions - adjust these based on your specific HAT strategy
     swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
     swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
@@ -1818,7 +1818,7 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
 // SWING ATR EXIT LOGIC
 if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY" and close < swing_lower_atr_trail
-        swing_exit_price = close
+        swing_exit_price := close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1828,7 +1828,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
         swing_in_trade := false
         swing_trade_type := ""
     if swing_trade_type == "SELL" and close > swing_upper_atr_trail
-        swing_exit_price = close
+        swing_exit_price := close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
@@ -1894,8 +1894,15 @@ if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_bas
             swing_trade_type := ""
 
 
-// SWING AUTO EXIT LOGIC - SEPARATE FROM MAIN AUTO EXIT
-if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
+// SWING AUTO EXIT LOGIC WITH RE-ENTRY TRACKING - SEPARATE FROM MAIN AUTO EXIT
+if swing_in_trade and swing_enable_auto_exit and isAfterSwingAutoExitTime() and barstate.isconfirmed
+    // Track that this exit was by auto exit
+    swing_last_exit_by_auto := true
+    swing_last_exit_trade_type := swing_trade_type
+    swing_last_exit_day := dayofmonth(time)
+    swing_re_entry_done_today := false
+    
+    // Calculate points for tracking (existing logic)
     swing_exit_price := normal_close
     if swing_trade_type == "BUY"
         if swing_exit_price > swing_entry_price
@@ -1912,9 +1919,15 @@ if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
             swing_trade_points_sl := swing_exit_price - swing_entry_price
             swing_sl_hit_alert := true
     
+    // Close the trade
     swing_auto_exit_alert := true
     swing_in_trade := false
     swing_trade_type := ""
+    swing_entry_price := na
+    swing_stop_loss := na
+    swing_take_profit := na
+    swing_entry_bar_index := na
+    swing_star_count_since_entry := 0
 
 
 
