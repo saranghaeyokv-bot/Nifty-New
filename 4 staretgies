@@ -1266,10 +1266,10 @@ if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
     if isAfterSwingAutoExitTime()
         swing_last_exit_auto := true
         swing_last_trade_type := swing_trade_type
-        swing_last_sl := swing_stop_loss  // Store for re-entry check
-        swing_last_tp := swing_take_profit  // Store for re-entry check
-    swing_in_trade := false
-    swing_trade_type := ""
+        swing_last_sl := swing_stop_loss
+        swing_last_tp := swing_take_profit
+        swing_in_trade := false
+        swing_trade_type := ""
 
 
 
