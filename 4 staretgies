@@ -902,14 +902,27 @@ if enable_swing_override and swing_in_trade and (tbh_has_signal)
     if raw_points > 0
         swing_trade_points_tp := raw_points  // Positive profit
         swing_tp_hit_alert := true
+        // Add TP label
+        label.new(bar_index, swing_trade_type == "BUY" ? high + (high - low) * 0.1 : low - (high - low) * 0.1, 
+                 text="SWING TP", 
+                 color=color.new(color.green, 0), 
+                 textcolor=color.white, 
+                 style=swing_trade_type == "BUY" ? label.style_label_up : label.style_label_down, 
+                 size=size.small)
     else
         swing_trade_points_sl := raw_points  // Negative loss
         swing_sl_hit_alert := true
+        // Add SL label
+        label.new(bar_index, swing_trade_type == "BUY" ? low - (high - low) * 0.1 : high + (high - low) * 0.1, 
+                 text="SWING SL", 
+                 color=color.new(color.red, 0), 
+                 textcolor=color.white, 
+                 style=swing_trade_type == "BUY" ? label.style_label_down : label.style_label_up, 
+                 size=size.small)
     
     swing_closed_by_override := true
     swing_in_trade := false
     swing_trade_type := ""
-
 // Update active status after potential swing override
 any_strategy_active := tbh_in_trade or swing_in_trade
 
@@ -1301,8 +1314,15 @@ if swing_in_trade and swing_enable_atr_trail_exit and barstate.isconfirmed
         swing_sl_hit_alert := true
         swing_in_trade := false
         swing_trade_type := ""
+        // Add SL label
+        label.new(bar_index, low - (high - low) * 0.1, 
+                 text="SWING SL", 
+                 color=color.new(color.red, 0), 
+                 textcolor=color.white, 
+                 style=label.style_label_down, 
+                 size=size.small)
         if swing_enable_alerts
-            alert("Swing BUY Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(swing_trade_points_sl, "#.##"), alert.freq_once_per_bar)
+            alert("Swing BUY Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(raw_points, "#.##"), alert.freq_once_per_bar)
     else if swing_trade_type == "SELL" and normal_close >= swing_upper_atr_trail
         // Exit SELL on ATR trail hit (SL)
         swing_exit_price := normal_close
@@ -1310,9 +1330,15 @@ if swing_in_trade and swing_enable_atr_trail_exit and barstate.isconfirmed
         swing_sl_hit_alert := true
         swing_in_trade := false
         swing_trade_type := ""
+        // Add SL label
+        label.new(bar_index, high + (high - low) * 0.1, 
+                 text="SWING SL", 
+                 color=color.new(color.red, 0), 
+                 textcolor=color.white, 
+                 style=label.style_label_up, 
+                 size=size.small)
         if swing_enable_alerts
-            alert("Swing SELL Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(swing_trade_points_sl, "#.##"), alert.freq_once_per_bar)
-
+            alert("Swing SELL Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(raw_points, "#.##"), alert.freq_once_per_bar)
 
 
 // PERFORMANCE TRACKING FOR SWING EXITS - ADD TO COMBINED ARRAYS
