@@ -783,7 +783,7 @@ any_strategy_active :=tbh_in_trade or swing_in_trade
 if swing_final_buy_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "BUY"
-    swing_entry_price := close
+    swing_entry_price := normal_close
     swing_entry_bar := bar_index
     swing_star_count_since_entry := 0
     
@@ -792,8 +792,8 @@ if swing_final_buy_signal and not swing_in_trade
         swing_stop_loss := na
         swing_take_profit := na
     else
-        swing_stop_loss := close - swing_fixed_sl_points
-        swing_take_profit := close + swing_fixed_tp_points
+        swing_stop_loss := swing_entry_price - swing_fixed_sl_points
+        swing_take_profit := swing_entry_price + swing_fixed_tp_points
     
     // Alert
     if swing_enable_alerts
@@ -802,7 +802,7 @@ if swing_final_buy_signal and not swing_in_trade
 if swing_final_sell_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "SELL"
-    swing_entry_price := close
+    swing_entry_price := normal_close
     swing_entry_bar := bar_index
     swing_star_count_since_entry := 0
     
@@ -811,8 +811,8 @@ if swing_final_sell_signal and not swing_in_trade
         swing_stop_loss := na
         swing_take_profit := na
     else
-        swing_stop_loss := close + swing_fixed_sl_points
-        swing_take_profit := close - swing_fixed_tp_points
+        swing_stop_loss := swing_entry_price + swing_fixed_sl_points
+        swing_take_profit := swing_entry_price - swing_fixed_tp_points
     
     // Alert
     if swing_enable_alerts
@@ -958,8 +958,8 @@ if tbh_buy_condition and not tbh_in_trade and barstate.isconfirmed
     tbh_trade_type := "BUY"
     tbh_entry_price := normal_close
     tbh_entry_bar_index := bar_index
-    tbh_entry_candle_low := low
-    tbh_entry_candle_high := high
+    tbh_entry_candle_low := normal_low
+    tbh_entry_candle_high := normal_high
     tbh_supertrend_activated := false
     tbh_using_fixed_tp := (tbh_tp_mode == "Fixed TP")
     
@@ -1135,7 +1135,7 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
 // SWING ATR EXIT LOGIC
 if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY" and close < swing_lower_atr_trail
-        swing_exit_price = close
+        swing_exit_price := normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1145,7 +1145,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
         swing_in_trade := false
         swing_trade_type := ""
     if swing_trade_type == "SELL" and close > swing_upper_atr_trail
-        swing_exit_price = close
+        swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
