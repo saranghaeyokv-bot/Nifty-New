@@ -1012,23 +1012,23 @@ if tbh_in_trade and bar_index > tbh_entry_bar_index and not tbh_315_exit and bar
     if tbh_using_fixed_tp
         // FIXED TP MODE - Traditional TP/SL logic (no trailing)
         if tbh_trade_type == "BUY"
-            if normal_low <= tbh_current_sl
-                tbh_sl_hit := true
-                tbh_in_trade := false
-                tbh_trade_points_sl := tbh_entry_price - tbh_current_sl
-            else if normal_high >= tbh_take_profit
-                tbh_tp_hit := true
-                tbh_in_trade := false
-                tbh_trade_points_tp := tbh_take_profit - tbh_entry_price
-        else if tbh_trade_type == "SELL"
-            if normal_high >= tbh_current_sl
-                tbh_sl_hit := true
-                tbh_in_trade := false
-                tbh_trade_points_sl := tbh_current_sl - tbh_entry_price
-            else if normal_low <= tbh_take_profit
-                tbh_tp_hit := true
-                tbh_in_trade := false
-                tbh_trade_points_tp := tbh_entry_price - tbh_take_profit
+    if normal_high >= tbh_take_profit  // Fixed: Use normal_high for BUY TP
+        tbh_tp_hit := true
+        tbh_in_trade := false
+        tbh_trade_points_tp := tbh_take_profit - tbh_entry_price  // Fixed: Positive for profit
+    else if normal_low <= tbh_current_sl  // Added: SL check
+        tbh_sl_hit := true
+        tbh_in_trade := false
+        tbh_trade_points_sl := tbh_entry_price - tbh_current_sl
+else if tbh_trade_type == "SELL"  // Added: SELL logic (was missing)
+    if normal_low <= tbh_take_profit
+        tbh_tp_hit := true
+        tbh_in_trade := false
+        tbh_trade_points_tp := tbh_entry_price - tbh_take_profit
+    else if normal_high >= tbh_current_sl
+        tbh_sl_hit := true
+        tbh_in_trade := false
+        tbh_trade_points_sl := tbh_current_sl - tbh_entry_price
     else
         // PURE TRAILING MODE - Original supertrend trailing logic
         
@@ -1144,7 +1144,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
             swing_sl_hit_alert := true
         swing_in_trade := false
         swing_trade_type := ""
-    if swing_trade_type == "SELL" and close > swing_upper_atr_trail
+    if swing_trade_type == "SELL" and normal_close > swing_upper_atr_trail
         swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
