@@ -662,6 +662,9 @@ if swing_sell_signal and not swing_in_trade
          style=label.style_label_down, 
          size=size.small)
 
+
+swing_overlap_blocked = enable_overlap_filter and (tbh_in_trade)
+
 // ═════════════════════════════════════════════════════════════════
 // SWING RE-ENTRY AFTER AUTO EXIT
 // ═════════════════════════════════════════════════════════════════
@@ -821,8 +824,7 @@ swing_signal_this_bar := false
 swing_bias_allowed_buy = isBiasAllowedForBuy()
 swing_bias_allowed_sell = isBiasAllowedForSell()
 
-// Check if swing signals should be blocked by overlap filter
-swing_overlap_blocked = enable_overlap_filter and (tbh_in_trade)
+
 
 
 // Final swing signals with all filters applied
