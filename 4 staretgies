@@ -260,8 +260,9 @@ swing_bias_stock20_current = request.security("NSE:SUNPHARMA", str.tostring(swin
 swing_bias_stock20_ref = request.security("NSE:SUNPHARMA", str.tostring(swing_bias_update_frequency), close[1], lookahead=barmerge.lookahead_off)
 
 // Arrays for Swing bias calculation - TOP 16 STOCKS
-swing_bias_current_prices = array.from(swing_bias_stock1_current, swing_bias_stock2_current, swing_bias_stock3_current, swing_bias_stock4_current, swing_bias_stock5_current, swing_bias_stock6_current, swing_bias_stock7_current, swing_bias_stock8_current, swing_bias_stock9_current, swing_bias_stock10_current, swing_bias_stock11_current, swing_bias_stock12_current, swing_bias_stock13_current, swing_bias_stock14_current, swing_bias_stock15_current, swing_bias_stock16_current)
-swing_bias_ref_prices = array.from(swing_bias_stock1_ref, swing_bias_stock2_ref, swing_bias_stock3_ref, swing_bias_stock4_ref, swing_bias_stock5_ref, swing_bias_stock6_ref, swing_bias_stock7_ref, swing_bias_stock8_ref, swing_bias_stock9_ref, swing_bias_stock10_ref, swing_bias_stock11_ref, swing_bias_stock12_ref, swing_bias_stock13_ref, swing_bias_stock14_ref, swing_bias_stock15_ref, swing_bias_stock16_ref)
+swing_bias_current_prices = bias_current_prices
+swing_bias_ref_prices = bias_ref_prices
+
 
 // Calculate Swing bias with top 16 stocks - SEPARATE VARIABLES
 var float swing_bias_gainers_weight = 0.0
@@ -673,6 +674,8 @@ var float swing_trade_points_tp = 0.0
 var float swing_trade_points_sl = 0.0
 var float swing_stop_loss = na
 var float swing_take_profit = na
+
+
 
 
 // SL Streak tracking
