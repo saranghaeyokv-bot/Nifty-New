@@ -1008,29 +1008,27 @@ if tbh_sell_condition and not tbh_in_trade and barstate.isconfirmed
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 if tbh_in_trade and bar_index > tbh_entry_bar_index and not tbh_315_exit and barstate.isconfirmed
-    
     if tbh_using_fixed_tp
         // FIXED TP MODE - Traditional TP/SL logic (no trailing)
         if tbh_trade_type == "BUY"
-    if normal_high >= tbh_take_profit  // Fixed: Use normal_high for BUY TP
-        tbh_tp_hit := true
-        tbh_in_trade := false
-        tbh_trade_points_tp := tbh_take_profit - tbh_entry_price  // Fixed: Positive for profit
-    else if normal_low <= tbh_current_sl  // Added: SL check
-        tbh_sl_hit := true
-        tbh_in_trade := false
-        tbh_trade_points_sl := tbh_entry_price - tbh_current_sl
-else if tbh_trade_type == "SELL"  // Added: SELL logic (was missing)
-    if normal_low <= tbh_take_profit
-        tbh_tp_hit := true
-        tbh_in_trade := false
-        tbh_trade_points_tp := tbh_entry_price - tbh_take_profit
-    else if normal_high >= tbh_current_sl
-        tbh_sl_hit := true
-        tbh_in_trade := false
-        tbh_trade_points_sl := tbh_current_sl - tbh_entry_price
+            if normal_high >= tbh_take_profit  // Fixed: Use normal_high for BUY TP
+                tbh_tp_hit := true
+                tbh_in_trade := false
+                tbh_trade_points_tp := tbh_take_profit - tbh_entry_price  // Fixed: Positive for profit
+            else if normal_low <= tbh_current_sl  // Added: SL check
+                tbh_sl_hit := true
+                tbh_in_trade := false
+                tbh_trade_points_sl := tbh_entry_price - tbh_current_sl
+        else if tbh_trade_type == "SELL"  // Added: SELL logic (was missing)
+            if normal_low <= tbh_take_profit
+                tbh_tp_hit := true
+                tbh_in_trade := false
+                tbh_trade_points_tp := tbh_entry_price - tbh_take_profit
+            else if normal_high >= tbh_current_sl
+                tbh_sl_hit := true
+                tbh_in_trade := false
+                tbh_trade_points_sl := tbh_current_sl - tbh_entry_price
     else
-        // PURE TRAILING MODE - Original supertrend trailing logic
         
         // CHECK IF SUPERTREND SHOULD TAKE OVER THE TRAILING
         if not tbh_supertrend_activated
