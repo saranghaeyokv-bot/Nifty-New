@@ -820,8 +820,8 @@ if swing_final_sell_signal and not swing_in_trade
 
 // Dual ATR trailing stop logic
 swing_atr = ta.atr(swing_atr_trail_period)
-swing_long_stop_raw = low - swing_atr_trail_mult * swing_atr
-swing_short_stop_raw = high + swing_atr_trail_mult * swing_atr
+swing_long_stop_raw = normal_low - swing_atr_trail_mult * swing_atr  // Fixed: Use normal_low
+swing_short_stop_raw = normal_high + swing_atr_trail_mult * swing_atr  // Fixed: Use normal_high
 
 var float swing_lower_atr_trail = na
 var float swing_upper_atr_trail = na
@@ -1130,9 +1130,8 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
         swing_take_profit := swing_entry_price - swing_fixed_tp_points
 
 // SWING ATR EXIT LOGIC
-// SWING ATR EXIT LOGIC
 if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
-    if swing_trade_type == "BUY" and close < swing_lower_atr_trail
+    if swing_trade_type == "BUY" and normal_close <= swing_lower_atr_trail  // Added: BUY ATR exit
         swing_exit_price := normal_close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
@@ -1142,7 +1141,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
             swing_sl_hit_alert := true
         swing_in_trade := false
         swing_trade_type := ""
-    if swing_trade_type == "SELL" and normal_close > swing_upper_atr_trail
+    else if swing_trade_type == "SELL" and normal_close > swing_upper_atr_trail  // Fixed: Use normal_close
         swing_exit_price := normal_close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
