@@ -797,7 +797,7 @@ if swing_final_buy_signal and not swing_in_trade
     
     // Alert
     if swing_enable_alerts
-        alert("Swing BUY Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
+        alert("Swing BUY Signal - Entry: " + str.tostring(swing_entry_price, "#.##"), alert.freq_once_per_bar)
 
 if swing_final_sell_signal and not swing_in_trade
     swing_in_trade := true
@@ -816,7 +816,7 @@ if swing_final_sell_signal and not swing_in_trade
     
     // Alert
     if swing_enable_alerts
-        alert("Swing SELL Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
+        alert("Swing SELL Signal - Entry: " + str.tostring(swing_entry_price, "#.##"), alert.freq_once_per_bar)
 
 // Dual ATR trailing stop logic
 swing_atr = ta.atr(swing_atr_trail_period)
@@ -983,8 +983,8 @@ if tbh_sell_condition and not tbh_in_trade and barstate.isconfirmed
     tbh_trade_type := "SELL"
     tbh_entry_price := normal_close
     tbh_entry_bar_index := bar_index
-    tbh_entry_candle_low := low
-    tbh_entry_candle_high := high
+    tbh_entry_candle_low := normal_low
+    tbh_entry_candle_high := normal_high
     tbh_supertrend_activated := false
     tbh_using_fixed_tp := (tbh_tp_mode == "Fixed TP")
     
