@@ -851,6 +851,32 @@ if swing_in_trade
         swing_star_count_since_entry += 1
 
 
+
+
+// ATR Trailing Stop Exit Logic - ENFORCE EXITS ON TRAIL HITS
+if swing_in_trade and swing_enable_atr_trail_exit and barstate.isconfirmed
+    if swing_trade_type == "BUY" and normal_close <= swing_lower_atr_trail
+        // Exit BUY on ATR trail hit (SL)
+        swing_exit_price := normal_close
+        swing_trade_points_sl := swing_entry_price - swing_exit_price
+        swing_sl_hit_alert := true
+        swing_in_trade := false
+        swing_trade_type := ""
+        // Optional: Alert or label here if needed
+        if swing_enable_alerts
+            alert("Swing BUY Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(swing_trade_points_sl, "#.##"), alert.freq_once_per_bar)
+    else if swing_trade_type == "SELL" and normal_close >= swing_upper_atr_trail
+        // Exit SELL on ATR trail hit (SL)
+        swing_exit_price := normal_close
+        swing_trade_points_sl := swing_entry_price - swing_exit_price  // Note: For SELL, entry > exit on profit, but this is SL loss
+        swing_sl_hit_alert := true
+        swing_in_trade := false
+        swing_trade_type := ""
+        // Optional: Alert or label here if needed
+        if swing_enable_alerts
+            alert("Swing SELL Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(swing_trade_points_sl, "#.##"), alert.freq_once_per_bar)
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH POSITION MANAGEMENT - PURE TRAILING LOGIC (NO FIXED TP) 
 // ═══════════════════════════════════════════════════════════════════════════════════
