@@ -251,10 +251,6 @@ tbh_enable_alerts = input.bool(true, title="Enable TBH Alerts", group="Top Botto
 // SWING (HEIKIN ASHI) STRATEGY INPUTS
 // ═════════════════════════════════════════════════════════════════
 
-// ═════════════════════════════════════════════════════════════════
-// SWING (HEIKIN ASHI) STRATEGY INPUTS
-// ═════════════════════════════════════════════════════════════════
-
 // Original HAT Inputs
 swing_res = input.timeframe(title="Swing Resolution", defval="", group="Swing Strategy")
 swing_colorBars = input.bool(title="Color bars", defval=false, group="Swing Strategy")
@@ -279,15 +275,12 @@ swing_volume_multiplier = input.float(1.0,step=0.1, title="Volume Multiplier", g
 
 
 swing_enable_atr_trail_exit = input.bool(true, title="Enable ATR Trailing Stop Exit", group="Swing Strategy")
-// Initial trail (used first until secondary crosses entry)
-swing_atr_trail_period = input.int(5, title="Initial ATR Trail Period", group="Swing Strategy")
-swing_atr_trail_hhv = input.int(10, title="ATR Trail HHV Period", group="Swing Strategy")  // Note: Not used in dual trail logic, kept for compatibility
-swing_atr_trail_mult = input.float(2.5, step=0.1, title="Initial ATR Trail Multiplier", group="Swing Strategy")
-// Secondary trail (switches after crossing entry price)
-swing_secondary_atr_trail_period = input.int(10, title="Secondary ATR Trail Period", group="Swing Strategy")
-swing_secondary_atr_trail_mult = input.float(3.0, step=0.1, title="Secondary ATR Trail Multiplier", group="Swing Strategy")
+swing_atr_trail_period = input.int(5, title="ATR Trail Period", group="Swing Strategy")
+swing_atr_trail_hhv = input.int(10, title="ATR Trail HHV Period", group="Swing Strategy")
+swing_atr_trail_mult = input.float(2.5, step=0.1,title="ATR Trail Multiplier", group="Swing Strategy")
 
 swing_enable_alerts = input.bool(true, title="Enable Swing Alerts", group="Swing Strategy")
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -826,58 +819,25 @@ if swing_final_sell_signal and not swing_in_trade
         alert("Swing SELL Signal - Entry: " + str.tostring(swing_entry_price, "#.##"), alert.freq_once_per_bar)
 
 // Dual ATR trailing stop logic
-// Dual ATR trailing stop logic (initial and secondary trails)
 swing_atr = request.security(base_ticker, timeframe.period, ta.atr(swing_atr_trail_period), lookahead=barmerge.lookahead_off)
-swing_secondary_atr = request.security(base_ticker, timeframe.period, ta.atr(swing_secondary_atr_trail_period), lookahead=barmerge.lookahead_off)
+swing_long_stop_raw = normal_low - swing_atr_trail_mult * swing_atr  // Fixed: Use normal_low
+swing_short_stop_raw = normal_high + swing_atr_trail_mult * swing_atr  // Fixed: Use normal_high
 
-// Initial trail calculations
-swing_initial_long_stop_raw = normal_low - swing_atr_trail_mult * swing_atr
-swing_initial_short_stop_raw = normal_high + swing_atr_trail_mult * swing_atr
+var float swing_lower_atr_trail = na
+var float swing_upper_atr_trail = na
 
-// Secondary trail calculations
-swing_secondary_long_stop_raw = normal_low - swing_secondary_atr_trail_mult * swing_secondary_atr
-swing_secondary_short_stop_raw = normal_high + swing_secondary_atr_trail_mult * swing_secondary_atr
-
-// Variables for trails
-var float swing_initial_lower_atr_trail = na
-var float swing_secondary_lower_atr_trail = na
-var bool swing_switch_to_secondary_lower = false
-
-var float swing_initial_upper_atr_trail = na
-var float swing_secondary_upper_atr_trail = na
-var bool swing_switch_to_secondary_upper = false
-
-// For BUY trades: lower trail (stop loss) trails up, never decrease
+// For BUY trades: trail up, never decrease
 if not swing_in_trade or swing_trade_type != "BUY"
-    swing_initial_lower_atr_trail := swing_initial_long_stop_raw
-    swing_secondary_lower_atr_trail := swing_secondary_long_stop_raw
-    swing_switch_to_secondary_lower := false
+    swing_lower_atr_trail := swing_long_stop_raw
 else
-    swing_initial_lower_atr_trail := math.max(swing_initial_lower_atr_trail[1], swing_initial_long_stop_raw)
-    swing_secondary_lower_atr_trail := math.max(swing_secondary_lower_atr_trail[1], swing_secondary_long_stop_raw)
-    // Switch to secondary if it crosses entry price (secondary >= entry)
-    if not swing_switch_to_secondary_lower and swing_secondary_lower_atr_trail >= swing_entry_price
-        swing_switch_to_secondary_lower := true
+    swing_lower_atr_trail := math.max(swing_lower_atr_trail[1], swing_long_stop_raw)
 
-// For SELL trades: upper trail (stop loss) trails down, never increase
+// For SELL trades: trail down, never increase
 if not swing_in_trade or swing_trade_type != "SELL"
-    swing_initial_upper_atr_trail := swing_initial_short_stop_raw
-    swing_secondary_upper_atr_trail := swing_secondary_short_stop_raw
-    swing_switch_to_secondary_upper := false
+    swing_upper_atr_trail := swing_short_stop_raw
 else
-    swing_initial_upper_atr_trail := math.min(swing_initial_upper_atr_trail[1], swing_initial_short_stop_raw)
-    swing_secondary_upper_atr_trail := math.min(swing_secondary_upper_atr_trail[1], swing_secondary_short_stop_raw)
-    // Switch to secondary if it crosses entry price (secondary <= entry)
-    if not swing_switch_to_secondary_upper and swing_secondary_upper_atr_trail <= swing_entry_price
-        swing_switch_to_secondary_upper := true
+    swing_upper_atr_trail := math.min(swing_upper_atr_trail[1], swing_short_stop_raw)
 
-// Active trails (switches based on crossing logic)
-swing_active_lower_atr_trail = swing_switch_to_secondary_lower ? swing_secondary_lower_atr_trail : swing_initial_lower_atr_trail
-swing_active_upper_atr_trail = swing_switch_to_secondary_upper ? swing_secondary_upper_atr_trail : swing_initial_upper_atr_trail
-
-
-
-// Exit flags
 // Exit flags
 
 var bool swing_star_exit_alert = false
@@ -889,23 +849,6 @@ if swing_in_trade
         swing_star_count_since_entry += 1
     else if swing_trade_type == "SELL" and swing_green_star
         swing_star_count_since_entry += 1
-
-// ATR trail exit logic (using active trails)
-if swing_enable_atr_trail_exit and swing_in_trade
-    if swing_trade_type == "BUY" and normal_close <= swing_active_lower_atr_trail
-        // Exit BUY on ATR trail
-        swing_exit_price := normal_close
-        swing_trade_points_sl := swing_exit_price - swing_entry_price
-        swing_sl_hit_alert := true
-        swing_in_trade := false
-        swing_trade_type := ""
-    else if swing_trade_type == "SELL" and normal_close >= swing_active_upper_atr_trail
-        // Exit SELL on ATR trail
-        swing_exit_price := normal_close
-        swing_trade_points_sl := swing_entry_price - swing_exit_price
-        swing_sl_hit_alert := true
-        swing_in_trade := false
-        swing_trade_type := ""
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
