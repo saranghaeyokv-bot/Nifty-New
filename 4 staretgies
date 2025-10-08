@@ -901,7 +901,8 @@ swing_bias_allowed_buy = isBiasAllowedForBuy()
 swing_bias_allowed_sell = isBiasAllowedForSell()
 
 // Check if swing signals should be blocked by overlap filter
-swing_overlap_blocked = enable_overlap_filter and any_strategy_active
+swing_overlap_blocked = enable_overlap_filter and (breakout_in_trade or tbh_in_trade)
+
 
 // Final swing signals with all filters applied
 swing_final_buy_signal = swing_hat_buy_signal and swing_bias_allowed_buy and not swing_overlap_blocked and not isEntryBlocked()
@@ -2054,7 +2055,7 @@ if swing_enable_alerts and enable_swing_strategy
     
     if swing_sell_entry
         exit_info = swing_use_star_based_exit ? " | Exit Mode: Star-based (exit on green star)" : " | Exit Mode: Fixed SL/TP"
-        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + get+BiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
+        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + getBiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
         alert("SWING SELL SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + bias_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
     if swing_tp_hit_alert
         exit_type = swing_use_star_based_exit ? "STAR-BASED" : "FIXED"
