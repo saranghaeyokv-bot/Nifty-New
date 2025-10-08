@@ -1314,6 +1314,25 @@ if swing_in_trade and swing_enable_atr_trail_exit and barstate.isconfirmed
             alert("Swing SELL Exit (ATR Trail SL) - Exit: " + str.tostring(swing_exit_price, "#.##") + ", Points: " + str.tostring(swing_trade_points_sl, "#.##"), alert.freq_once_per_bar)
 
 
+
+// PERFORMANCE TRACKING FOR SWING EXITS - ADD TO COMBINED ARRAYS
+if swing_tp_hit_alert or swing_sl_hit_alert
+    array.push(combined_trade_months, month(time))
+    array.push(combined_trade_years, year(time))
+    array.push(combined_trade_was_tp, swing_tp_hit_alert)
+    array.push(combined_trade_points, swing_tp_hit_alert ? swing_trade_points_tp : swing_trade_points_sl)
+    array.push(combined_trade_strategy, "Swing")
+    
+    combined_total_tp_count += swing_tp_hit_alert ? 1 : 0
+    combined_total_sl_count += swing_sl_hit_alert ? 1 : 0
+    combined_total_tp_points += swing_trade_points_tp
+    combined_total_sl_points += swing_trade_points_sl
+    
+    // Reset alerts to prevent double-counting
+    swing_tp_hit_alert := false
+    swing_sl_hit_alert := false
+
+
 // ═══════════════════════════════════════════════════════════════════════════════════
 // ENHANCED PERFORMANCE TABLE - UPDATED WITH 3 STRATEGIES
 // ═══════════════════════════════════════════════════════════════════════════════════
