@@ -1206,31 +1206,7 @@ if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
 
 
 
-// SWING COLOR EXIT LOGIC
-if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
-    // Exit for Buy (entered on lime): exit on any bar that is NOT lime
-    if enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
-        swing_exit_price := normal_close
-        if swing_exit_price > swing_entry_price
-            swing_trade_points_tp := swing_exit_price - swing_entry_price
-            swing_tp_hit_alert := true
-        else
-            swing_trade_points_sl := swing_entry_price - swing_exit_price
-            swing_sl_hit_alert := true
-        swing_in_trade := false
-        swing_trade_type := ""
 
-    // Exit for Sell (entered on red): exit on any bar that is NOT red
-    if swing_trade_type == "SELL" and not swing_bar_is_red
-        swing_exit_price := normal_close
-        if swing_exit_price < swing_entry_price
-            swing_trade_points_tp := swing_entry_price - swing_exit_price
-            swing_tp_hit_alert := true
-        else
-            swing_trade_points_sl := swing_exit_price - swing_entry_price
-            swing_sl_hit_alert := true
-        swing_in_trade := false
-        swing_trade_type := ""
 
 
 
