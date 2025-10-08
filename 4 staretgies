@@ -1130,6 +1130,7 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
         swing_take_profit := swing_entry_price - swing_fixed_tp_points
 
 // SWING ATR EXIT LOGIC
+// ATR EXIT LOGIC
 if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY" and normal_close <= swing_lower_atr_trail  // Added: BUY ATR exit
         swing_exit_price := normal_close
@@ -1155,29 +1156,30 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 
 
 // SWING FIXED SL/TP EXIT LOGIC
-if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_based_exit and barstate.isconfirmed
-    if swing_trade_type == "BUY"
-        if normal_low <= swing_stop_loss
-            swing_trade_points_sl := swing_entry_price - swing_stop_loss
-            swing_sl_hit_alert := true
-            swing_in_trade := false
-            swing_trade_type := ""
-        else if normal_high >= swing_take_profit
-            swing_trade_points_tp := swing_take_profit - swing_entry_price
+if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
+    // Exit for Buy (entered on lime): exit on any bar that is NOT lime
+    if swing_trade_type == "BUY" and not swing_bar_is_lime  // Fixed: Use correct BUY exit condition
+        swing_exit_price := normal_close
+        if swing_exit_price > swing_entry_price
+            swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
-            swing_in_trade := false
-            swing_trade_type := ""
-    else if swing_trade_type == "SELL"
-        if normal_high >= swing_stop_loss
-            swing_trade_points_sl := swing_stop_loss - swing_entry_price
+        else
+            swing_trade_points_sl := swing_entry_price - swing_exit_price
             swing_sl_hit_alert := true
-            swing_in_trade := false
-            swing_trade_type := ""
-        else if normal_low <= swing_take_profit
-            swing_trade_points_tp := swing_entry_price - swing_take_profit
+        swing_in_trade := false
+        swing_trade_type := ""
+
+    // Exit for Sell (entered on red): exit on any bar that is NOT red
+    if swing_trade_type == "SELL" and not swing_bar_is_red
+        swing_exit_price := normal_close
+        if swing_exit_price < swing_entry_price
+            swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
-            swing_in_trade := false
-            swing_trade_type := ""
+        else
+            swing_trade_points_sl := swing_exit_price - swing_entry_price
+            swing_sl_hit_alert := true
+        swing_in_trade := false
+        swing_trade_type := ""
 
 
 // SWING AUTO EXIT LOGIC - SEPARATE FROM MAIN AUTO EXIT
