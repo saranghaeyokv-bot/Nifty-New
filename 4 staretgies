@@ -66,16 +66,6 @@ swing_block_entries_after_exit = input.bool(true, title="Block Swing Entries Aft
 
 swing_start_time = input.string("09:15", title="Swing Strategy Start Time", options=["09:15", "09:30", "09:45", "10:00", "09:20", "10:30", "10:45", "11:00"], group="Strategy Start Times")
 
-
-
-// SWING AUTO EXIT RE-ENTRY TRACKING VARIABLES
-var bool swing_last_exit_by_auto = false
-var string swing_last_exit_trade_type = ""
-var bool swing_re_entry_done_today = false
-var int swing_last_exit_day = na
-
-
-
 // ═══════════════════════════════════════════════════════════════════════════════════
 // NIFTY BIAS CONFLUENCE CALCULATION - TOP 20 STOCKS
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -463,13 +453,6 @@ swing_fixed_tp_points = input.float(40.0, title="Fixed TP Points (if not using s
 swing_volume_ma_length = input.int(20, title="Volume MA Length", group="Swing Strategy")
 swing_volume_multiplier = input.float(1.0, title="Volume Multiplier", group="Swing Strategy")
 
-
-// RE-ENTRY DISPLAY SETTINGS
-swing_show_reentry_labels = input.bool(true, title="Show Re-Entry Labels", group="Swing Strategy")
-swing_show_reentry_levels = input.bool(true, title="Show Re-Entry SL/TP Lines", group="Swing Strategy")
-swing_reentry_line_length = input.int(10, title="Re-Entry Line Length", minval=5, maxval=50, group="Swing Strategy")
-
-
 swing_enable_first_n_colored_entry = input.bool(true, title="Enable Entry Only on First N Consecutive Color Bars", group="Swing Strategy")
 swing_first_n_colored_bars = input.int(3, title="N: Max Number of Consecutive Color Bars for Entry", minval=1, maxval=20, group="Swing Strategy")
 
@@ -604,29 +587,6 @@ isSwingEntryBlocked() =>
         false
 
 
-
-
-// Check if current candle is first candle before 9:21
-isFirstCandleBefore926() =>
-    current_hour = hour(time, 'GMT+5:30')
-    current_minute = minute(time, 'GMT+5:30')
-    current_hour == 9 and current_minute <= 26
-
-// Check if SL or TP hit in current candle
-isSlOrTpHitInCurrentCandle(entry_price, stop_loss, take_profit, is_buy_trade) =>
-    if is_buy_trade
-        // For BUY: SL hit if low <= stop_loss, TP hit if high >= take_profit
-        (not na(stop_loss) and low <= stop_loss) or (not na(take_profit) and high >= take_profit)
-    else
-        // For SELL: SL hit if high >= stop_loss, TP hit if low <= take_profit
-        (not na(stop_loss) and high >= stop_loss) or (not na(take_profit) and low <= take_profit)
-
-// Reset re-entry flag on new day
-if dayofweek != dayofweek[1] and barstate.isconfirmed
-    swing_re_entry_done_today := false
-    
-
-
 // ═══════════════════════════════════════════════════════════════════════════════════
 // TBH CANDLE COLOR FILTER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -718,8 +678,6 @@ var float swing_trade_points_tp = 0.0
 var float swing_trade_points_sl = 0.0
 var float swing_stop_loss = na
 var float swing_take_profit = na
-
-
 
 
 // SL Streak tracking
@@ -1028,90 +986,21 @@ swing_l2 = swing_t3(swing_ha_l, swing_T3Length, swing_T3FactorCalc)
 // SWING SIGNAL DETECTION AND ENTRY PROCESSING
 // ═════════════════════════════════════════════════════════════════
 
-
-// Define swing_signal_allowed with re-entry logic
-swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore926() and dayofmonth(time) != swing_last_exit_day
-
+// Define swing_signal_allowed
 swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
 
 // Initialize swing signals
 swing_buy_signal = false
 swing_sell_signal = false
 
-// Re-entry logic for auto-exit trades
-if barstate.isconfirmed and swing_re_entry_allowed and not swing_in_trade
-    // Calculate ATR-based SL/TP for re-entry
-    swing_atr_value = ta.atr(swing_atr_trail_period)
-    potential_entry_price = close
-    
-    if swing_last_exit_trade_type == "BUY"
-        potential_sl = potential_entry_price - (swing_atr_value * swing_atr_trail_mult)
-        potential_tp = swing_use_star_based_exit ? na : potential_entry_price + swing_fixed_tp_points
-        
-        // Check if SL/TP would be hit immediately
-        if not isSlOrTpHitInCurrentCandle(potential_entry_price, potential_sl, potential_tp, true)
-            swing_buy_signal := true
-            swing_re_entry_done_today := true
-            swing_last_exit_by_auto := false  // Reset flag after re-entry
-    
-    else if swing_last_exit_trade_type == "SELL"
-        potential_sl = potential_entry_price + (swing_atr_value * swing_atr_trail_mult)
-        potential_tp = swing_use_star_based_exit ? na : potential_entry_price - swing_fixed_tp_points
-        
-        // Check if SL/TP would be hit immediately
-        if not isSlOrTpHitInCurrentCandle(potential_entry_price, potential_sl, potential_tp, false)
-            swing_sell_signal := true
-            swing_re_entry_done_today := true
-            swing_last_exit_by_auto := false  // Reset flag after re-entry
-
 // Basic swing signal logic based on Heikin Ashi T3 calculations
-if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed and not swing_buy_signal and not swing_sell_signal
+if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
     // Example signal conditions - adjust these based on your specific HAT strategy
-    var swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
-    var swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
+    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
+    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
     
-
-    
-    // Apply bias confluence if enabled
-    if swing_buy_condition and isSwingBiasAllowedForBuy()
-        swing_buy_signal := true
-    
-    if swing_sell_condition and isSwingBiasAllowedForSell()
-        swing_sell_signal := true
-
-
-
-
-// Process swing entry signals (including re-entry)
-if (swing_buy_signal or swing_sell_signal) and not swing_in_trade and barstate.isconfirmed
-    swing_atr_value = ta.atr(swing_atr_trail_period)
-    
-    if swing_buy_signal
-        swing_in_trade := true
-        swing_trade_type := "BUY"
-        swing_entry_price := close
-        swing_entry_bar_index := bar_index
-        swing_entry_bar := bar_index
-        swing_star_count_since_entry := 0
-        
-        // Calculate ATR-based SL and TP
-        swing_stop_loss := swing_entry_price - (swing_atr_value * swing_atr_trail_mult)
-        swing_take_profit := swing_use_star_based_exit ? na : swing_entry_price + swing_fixed_tp_points
-        
-    else if swing_sell_signal
-        swing_in_trade := true
-        swing_trade_type := "SELL"
-        swing_entry_price := close
-        swing_entry_bar_index := bar_index
-        swing_entry_bar := bar_index
-        swing_star_count_since_entry := 0
-        
-        // Calculate ATR-based SL and TP
-        swing_stop_loss := swing_entry_price + (swing_atr_value * swing_atr_trail_mult)
-        swing_take_profit := swing_use_star_based_exit ? na : swing_entry_price - swing_fixed_tp_points
-
-
-
+    swing_buy_signal := swing_buy_condition and isSwingBiasAllowedForBuy()
+    swing_sell_signal := swing_sell_condition and isSwingBiasAllowedForSell()
 
 // SWING ENTRY PROCESSING
 if swing_buy_signal and not swing_in_trade
@@ -1247,32 +1136,6 @@ if swing_sell_signal and not swing_in_trade
              size=size.small)
 
 
-
-// SWING RE-ENTRY VISUAL ELEMENTS
-if swing_show_reentry_labels or swing_show_reentry_levels
-    swing_re_entry_allowed = swing_last_exit_by_auto and not swing_re_entry_done_today and isFirstCandleBefore926() and dayofmonth(time) != swing_last_exit_day
-
-    // Re-entry BUY labels and levels
-    if swing_buy_signal and swing_re_entry_allowed and barstate.isconfirmed
-        if swing_show_reentry_labels
-            label.new(x=bar_index, y=low - (ta.atr(5) * 0.5), text="🔄 RE-BUY\n" + str.tostring(close, "#.##") + "\nATR SL/TP", color=color.new(color.lime, 20), textcolor=color.white, style=label.style_label_up, size=size.normal, tooltip="Re-entry BUY after auto exit\nEntry: " + str.tostring(close, "#.##") + "\nSL: " + str.tostring(swing_stop_loss, "#.##") + "\nTP: " + (na(swing_take_profit) ? "Star-based" : str.tostring(swing_take_profit, "#.##")))
-
-        if swing_show_reentry_levels
-            if not na(swing_stop_loss)
-                line.new(x1=bar_index, y1=swing_stop_loss, x2=bar_index + swing_reentry_line_length, y2=swing_stop_loss, color=color.new(color.red, 30), width=2, style=line.style_dashed), label.new(x=bar_index + math.round(swing_reentry_line_length/2), y=swing_stop_loss, text="RE-SL: " + str.tostring(swing_stop_loss, "#.##"), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_left, size=size.small)
-            if not na(swing_take_profit)
-                line.new(x1=bar_index, y1=swing_take_profit, x2=bar_index + swing_reentry_line_length, y2=swing_take_profit, color=color.new(color.green, 30), width=2, style=line.style_dashed), label.new(x=bar_index + math.round(swing_reentry_line_length/2), y=swing_take_profit, text="RE-TP: " + str.tostring(swing_take_profit, "#.##"), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_left, size=size.small)
-
-    // Re-entry SELL labels and levels
-    if swing_sell_signal and swing_re_entry_allowed and barstate.isconfirmed
-        if swing_show_reentry_labels
-            label.new(x=bar_index, y=high + (ta.atr(5) * 0.5), text="🔄 RE-SELL\n" + str.tostring(close, "#.##") + "\nATR SL/TP", color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.normal, tooltip="Re-entry SELL after auto exit\nEntry: " + str.tostring(close, "#.##") + "\nSL: " + str.tostring(swing_stop_loss, "#.##") + "\nTP: " + (na(swing_take_profit) ? "Star-based" : str.tostring(swing_take_profit, "#.##")))
-
-        if swing_show_reentry_levels
-            if not na(swing_stop_loss)
-                line.new(x1=bar_index, y1=swing_stop_loss, x2=bar_index + swing_reentry_line_length, y2=swing_stop_loss, color=color.new(color.red, 30), width=2, style=line.style_dashed), label.new(x=bar_index + math.round(swing_reentry_line_length/2), y=swing_stop_loss, text="RE-SL: " + str.tostring(swing_stop_loss, "#.##"), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_left, size=size.small)
-            if not na(swing_take_profit)
-                line.new(x1=bar_index, y1=swing_take_profit, x2=bar_index + swing_reentry_line_length, y2=swing_take_profit, color=color.new(color.green, 30), width=2, style=line.style_dashed), label.new(x=bar_index + math.round(swing_reentry_line_length/2), y=swing_take_profit, text="RE-TP: " + str.tostring(swing_take_profit, "#.##"), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_left, size=size.small)
 
 
 // ═════════════════════════════════════════════════════════════════
@@ -1855,7 +1718,7 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
 // SWING ATR EXIT LOGIC
 if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY" and close < swing_lower_atr_trail
-        swing_exit_price := close
+        swing_exit_price = close
         if swing_exit_price > swing_entry_price
             swing_trade_points_tp := swing_exit_price - swing_entry_price
             swing_tp_hit_alert := true
@@ -1865,7 +1728,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
         swing_in_trade := false
         swing_trade_type := ""
     if swing_trade_type == "SELL" and close > swing_upper_atr_trail
-        swing_exit_price := close
+        swing_exit_price = close
         if swing_exit_price < swing_entry_price
             swing_trade_points_tp := swing_entry_price - swing_exit_price
             swing_tp_hit_alert := true
@@ -1874,10 +1737,6 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
             swing_sl_hit_alert := true
         swing_in_trade := false
         swing_trade_type := ""
-
-// When swing trade closes by SL or TP (not auto exit)
-if swing_in_trade and (swing_sl_hit_alert or swing_tp_hit_alert)
-    swing_last_exit_by_auto := false  // Reset flag since exit was by SL/TP, not auto exit
 
 // SWING STAR-BASED EXIT LOGIC
 if not swing_enable_atr_trail_exit and swing_use_star_based_exit and swing_in_trade and barstate.isconfirmed
@@ -1931,15 +1790,8 @@ if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_bas
             swing_trade_type := ""
 
 
-// SWING AUTO EXIT LOGIC WITH RE-ENTRY TRACKING - SEPARATE FROM MAIN AUTO EXIT
-if swing_in_trade and swing_enable_auto_exit and isAfterSwingAutoExitTime() and barstate.isconfirmed
-    // Track that this exit was by auto exit
-    swing_last_exit_by_auto := true
-    swing_last_exit_trade_type := swing_trade_type
-    swing_last_exit_day := dayofmonth(time)
-    swing_re_entry_done_today := false
-    
-    // Calculate points for tracking (existing logic)
+// SWING AUTO EXIT LOGIC - SEPARATE FROM MAIN AUTO EXIT
+if swing_in_trade and isAfterSwingAutoExitTime() and barstate.isconfirmed
     swing_exit_price := normal_close
     if swing_trade_type == "BUY"
         if swing_exit_price > swing_entry_price
@@ -1956,15 +1808,9 @@ if swing_in_trade and swing_enable_auto_exit and isAfterSwingAutoExitTime() and 
             swing_trade_points_sl := swing_exit_price - swing_entry_price
             swing_sl_hit_alert := true
     
-    // Close the trade
     swing_auto_exit_alert := true
     swing_in_trade := false
     swing_trade_type := ""
-    swing_entry_price := na
-    swing_stop_loss := na
-    swing_take_profit := na
-    swing_entry_bar_index := na
-    swing_star_count_since_entry := 0
 
 
 
