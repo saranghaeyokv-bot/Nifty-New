@@ -694,12 +694,9 @@ swing_entry_allowed = enable_swing_strategy and not swing_in_trade and isSwingSt
 
 
 
-swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isBiasAllowedForBuy())
-
-swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and isBiasAllowedForSell())
-swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed 
-swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed
-
+// SIMPLIFIED SWING SIGNAL DETECTION (NO STAR-BASED)
+swing_hat_buy_signal = swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter and swing_entry_allowed
+swing_hat_sell_signal = swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter and swing_entry_allowed
 
 
 
@@ -1617,33 +1614,25 @@ plotshape(
      color=color.purple, text='SWING\nSELL', textcolor=color.white, size=size.small)
 
 // ─── Swing exit labels (TP and SL)
+// ─── Swing exit labels (TP and SL)
 if swing_tp_hit_alert and enable_swing_strategy
     actual_tp_points = math.abs(swing_trade_points_tp)
     label_y = swing_trade_type == "BUY" ? high + (swing_atr * 2) : low - (swing_atr * 2)
     label_style = swing_trade_type == "BUY" ? label.style_label_down : label.style_label_up
-    exit_type = swing_use_star_based_exit ? "STAR" : "FIXED"
-    label.new(x=bar_index, y=label_y, text="✅ SWING " + exit_type + " TP +" + str.tostring(math.round(actual_tp_points, 1)) + " pts", style=label_style, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
+    label.new(x=bar_index, y=label_y, text="✅ SWING TP +" + str.tostring(math.round(actual_tp_points, 1)) + " pts", style=label_style, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
 
 if swing_sl_hit_alert and enable_swing_strategy
     actual_sl_points = math.abs(swing_trade_points_sl)
     label_y = swing_trade_type == "BUY" ? low - (swing_atr * 2) : high + (swing_atr * 2)
     label_style = swing_trade_type == "BUY" ? label.style_label_up : label.style_label_down
-    exit_type = swing_use_star_based_exit ? "STAR" : "FIXED"
-    label.new(x=bar_index, y=label_y, text="❌ SWING " + exit_type + " SL -" + str.tostring(math.round(actual_sl_points, 1)) + " pts", style=label_style, color=color.new(color.purple, 0), textcolor=color.white, size=size.small)
-
+    label.new(x=bar_index, y=label_y, text="❌ SWING SL -" + str.tostring(math.round(actual_sl_points, 1)) + " pts", style=label_style, color=color.new(color.purple, 0), textcolor=color.white, size=size.small)
 // ─── Swing background highlighting
 bgcolor(
      swing_in_trade and swing_trade_type == "BUY" and enable_swing_strategy ? color.new(color.blue, 95) :
      swing_in_trade and swing_trade_type == "SELL" and enable_swing_strategy ? color.new(color.purple, 95) : na,
      title="Swing Active Trade Background")
 
-bgcolor(
-     swing_green_star and not swing_in_trade and enable_swing_strategy ? color.new(color.blue, 90) : na,
-     title="Swing Green Star Signal")
-
-bgcolor(
-     swing_red_star and not swing_in_trade and enable_swing_strategy ? color.new(color.purple, 90) : na,
-     title="Swing Red Star Signal")
+// Removed swing star background highlighting - no star-based logic
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1722,35 +1711,7 @@ alertcondition(tbh_sl_hit, 'TBH-TRAIL Stop Loss', 'TBH-TRAIL Stop Loss Hit')
 
 
 
-// SWING Alerts
-if swing_enable_alerts and enable_swing_strategy
-    if swing_buy_entry
-        exit_info = swing_use_star_based_exit ? " | Exit Mode: Star-based (exit on red star)" : " | Exit Mode: Fixed SL/TP"
-        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + getBiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
-        alert("SWING BUY SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + bias_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
-    
-    if swing_sell_entry
-        exit_info = swing_use_star_based_exit ? " | Exit Mode: Star-based (exit on green star)" : " | Exit Mode: Fixed SL/TP"
-        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + getBiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
-        alert("SWING SELL SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + bias_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
-    if swing_tp_hit_alert
-        exit_type = swing_use_star_based_exit ? "STAR-BASED" : "FIXED"
-        alert("SWING TAKE PROFIT (" + exit_type + "): Position closed with profit at " + str.tostring(close, "#.##") + " | Points: +" + str.tostring(math.abs(swing_trade_points_tp), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
-    
-    if swing_sl_hit_alert
-        exit_type = swing_use_star_based_exit ? "STAR-BASED" : "FIXED"
-        alert("SWING STOP LOSS (" + exit_type + "): Position closed with loss at " + str.tostring(close, "#.##") + " | Points: -" + str.tostring(math.abs(swing_trade_points_sl), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
-// Swing Alert Conditions
-alertcondition(swing_buy_entry and enable_swing_strategy, 'Swing Buy Signal', 'Swing Buy Signal Triggered')
-alertcondition(swing_sell_entry and enable_swing_strategy, 'Swing Sell Signal', 'Swing Sell Signal Triggered')
-alertcondition(swing_tp_hit_alert and enable_swing_strategy, 'Swing Take Profit', 'Swing Take Profit Hit')
-alertcondition(swing_sl_hit_alert and enable_swing_strategy, 'Swing Stop Loss', 'Swing Stop Loss Hit')
-
-// Add to existing swing alert logic
-if swing_auto_exit_alert and swing_enable_alerts
-    alert("Swing Auto Exit: " + swing_trade_type + " at " + str.tostring(swing_exit_price))
-    swing_auto_exit_alert := false
 
 
 // Reset Swing flags after processing
