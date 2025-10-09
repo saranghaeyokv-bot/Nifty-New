@@ -908,8 +908,9 @@ if swing_in_trade and swing_atr_trail_activated
     else if swing_trade_type == "SELL"
         swing_current_sl := swing_upper_atr_trail
 
-// Exit flags
 var bool swing_star_exit_alert = false
+var bool swing_tp_hit = false
+var bool swing_sl_hit = false
 
 
 // Star counting for star-based exit
@@ -1569,6 +1570,10 @@ plotshape(tbh_buy_condition, title="TBH Buy Signal", location=location.belowbar,
 plotshape(tbh_sell_condition, title="TBH Sell Signal", location=location.abovebar, color=color.fuchsia, style=shape.labeldown, text="TBH-TRAIL\nSELL", size=size.small)
 
 
+// ═════════════════════════════════════════════════════════════════
+// SWING PLOTS - INITIAL SL AND ATR TRAIL LINES
+// ═════════════════════════════════════════════════════════════════
+
 // Plot Swing Initial SL Line
 plot(swing_in_trade and not swing_atr_trail_activated ? swing_initial_sl : na, 
      title="Swing Initial SL", 
@@ -1903,10 +1908,29 @@ if swing_in_trade and barstate.isconfirmed
             swing_trade_points_tp := raw_points
             swing_tp_count += 1
             swing_tp_hit_alert := true
+            
+            // Update combined performance tracking
+            array.push(combined_trade_months, month(time))
+            array.push(combined_trade_years, year(time))
+            array.push(combined_trade_was_tp, true)
+            array.push(combined_trade_points, raw_points)
+            array.push(combined_trade_strategy, "SWING")
+            combined_total_tp_count += 1
+            combined_total_tp_points += raw_points
+            
         else if swing_sl_hit
             swing_trade_points_sl := raw_points
             swing_sl_count += 1
             swing_sl_hit_alert := true
+            
+            // Update combined performance tracking
+            array.push(combined_trade_months, month(time))
+            array.push(combined_trade_years, year(time))
+            array.push(combined_trade_was_tp, false)
+            array.push(combined_trade_points, raw_points)
+            array.push(combined_trade_strategy, "SWING")
+            combined_total_sl_count += 1
+            combined_total_sl_points += raw_points
         
         // Create exit label
         label_color = swing_tp_hit ? color.green : color.red
@@ -1919,7 +1943,12 @@ if swing_in_trade and barstate.isconfirmed
                  style=swing_trade_type == "BUY" ? label.style_label_down : label.style_label_up,
                  size=size.small)
         
+        // Alert
+        if swing_enable_alerts
+            alert("Swing " + swing_exit_reason + " - Exit: " + str.tostring(swing_exit_price, "#.##") + " | Points: " + str.tostring(raw_points, "#.#"), alert.freq_once_per_bar)
+        
         // Reset flags
         swing_tp_hit := false
         swing_sl_hit := false
         swing_atr_trail_activated := false
+        swing_trade_type := ""
