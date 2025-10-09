@@ -280,7 +280,7 @@ swing_T3Factor = input.float(defval=0.3, minval=0, maxval=100, step=0.1, title="
 swing_T3Length = input.int(defval=7, minval=1, title="Swing T3 Length", group="Swing Strategy")
 
 // Strategy Options - Pure Trailing Logic (Same as TBH)
-swing_use_star_based_exit = input.bool(true, title="Use Star-Based Exit", group="Swing Strategy")
+// Strategy Options - Pure Trailing Logic (Same as TBH) - NO STAR BASED
 // INITIAL STOP LOSS SETTINGS FOR SWING (Before ATR Trail Takes Over)
 swing_initial_sl_type = input.string("Fixed Points", title="Initial SL Type (Before Trail)", options=["Fixed Points", "Entry Candle Low"], group="Swing Strategy", tooltip="Initial SL used until ATR trail crosses this level")
 swing_fixed_sl_points = input.float(20.0, title="Fixed SL Points", group="Swing Strategy")
@@ -506,7 +506,7 @@ var string swing_trade_type = ""
 var float swing_entry_price = na
 var int swing_entry_bar_index = na
 var int swing_entry_bar = na
-var int swing_star_count_since_entry = 0
+
 var bool swing_tp_hit_alert = false
 var bool swing_sl_hit_alert = false
 var float swing_trade_points_tp = 0.0
@@ -653,7 +653,7 @@ if swing_buy_signal and not swing_in_trade
     swing_entry_price := normal_close
     swing_entry_bar_index := bar_index
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
+   
     
     // Create entry label
     label.new(bar_index, low - (high - low) * 0.1, 
@@ -669,7 +669,7 @@ if swing_sell_signal and not swing_in_trade
     swing_entry_price := normal_close
     swing_entry_bar_index := bar_index
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
+    
     
     // Create entry label
     label.new(bar_index, high + (high - low) * 0.1, 
@@ -690,9 +690,7 @@ swing_low_squeeze = math.abs(swing_percentHL) < swing_percentSqueeze and swing_p
 swing_crossPlot = swing_o2 < swing_c2 ? swing_l2 : swing_h2
 swing_plotColor = swing_high_squeeze ? color.maroon : swing_low_squeeze ? color.teal : swing_o2 < swing_c2 ? color.lime : color.red
 
-// Signal detection
-swing_green_star = swing_o2 < swing_c2 and (swing_o2[1] >= swing_c2[1])
-swing_red_star = swing_o2 > swing_c2 and (swing_o2[1] <= swing_c2[1])
+
 
 swing_o2_cross_under_long = ta.crossunder(swing_o2, swing_c2)
 swing_c2_cross_over_short = ta.crossover(swing_o2, swing_c2)
@@ -803,18 +801,21 @@ if swing_final_buy_signal or swing_final_sell_signal
 // Update any_strategy_active to include swing strategy
 any_strategy_active := tbh_in_trade or swing_in_trade
 
-// Swing strategy trade entries with overlap filter - SINGLE ENTRY LOGIC
+// ═════════════════════════════════════════════════════════════════
+// SWING ENTRY LOGIC - SINGLE CLEAN VERSION (NO STAR-BASED)
+// ═════════════════════════════════════════════════════════════════
+
+// Swing strategy trade entries - ONLY ATR TRAIL LOGIC
 if swing_final_buy_signal and not swing_in_trade and barstate.isconfirmed
     swing_in_trade := true
     swing_trade_type := "BUY"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
     swing_entry_candle_low := normal_low
     swing_entry_candle_high := normal_high
     swing_atr_trail_activated := false
     
-    // Set initial SL based on type
+    // Set initial SL based on type (same as TBH)
     if swing_initial_sl_type == "Fixed Points"
         swing_initial_sl := swing_entry_price - swing_fixed_sl_points
     else if swing_initial_sl_type == "Entry Candle Low"
@@ -823,8 +824,13 @@ if swing_final_buy_signal and not swing_in_trade and barstate.isconfirmed
     // Start with initial SL
     swing_current_sl := swing_initial_sl
     
-    // No fixed TP - pure trailing logic
-    swing_take_profit := na
+    // Create entry label
+    label.new(bar_index, low - (high - low) * 0.1, 
+             text="SWING\nBUY\nSL:" + str.tostring(swing_initial_sl, "#.#"), 
+             color=color.new(color.green, 0), 
+             textcolor=color.white, 
+             style=label.style_label_up, 
+             size=size.small)
     
     // Alert
     if swing_enable_alerts
@@ -835,12 +841,11 @@ if swing_final_sell_signal and not swing_in_trade and barstate.isconfirmed
     swing_trade_type := "SELL"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
     swing_entry_candle_low := normal_low
     swing_entry_candle_high := normal_high
     swing_atr_trail_activated := false
     
-    // Set initial SL based on type
+    // Set initial SL based on type (same as TBH)
     if swing_initial_sl_type == "Fixed Points"
         swing_initial_sl := swing_entry_price + swing_fixed_sl_points
     else if swing_initial_sl_type == "Entry Candle Low"
@@ -849,13 +854,17 @@ if swing_final_sell_signal and not swing_in_trade and barstate.isconfirmed
     // Start with initial SL
     swing_current_sl := swing_initial_sl
     
-    // No fixed TP - pure trailing logic
-    swing_take_profit := na
+    // Create entry label
+    label.new(bar_index, high + (high - low) * 0.1, 
+             text="SWING\nSELL\nSL:" + str.tostring(swing_initial_sl, "#.#"), 
+             color=color.new(color.red, 0), 
+             textcolor=color.white, 
+             style=label.style_label_down, 
+             size=size.small)
     
     // Alert
     if swing_enable_alerts
         alert("Swing SELL Signal - Entry: " + str.tostring(swing_entry_price, "#.##") + " | Initial SL: " + str.tostring(swing_initial_sl, "#.##"), alert.freq_once_per_bar)
-
 
 // Dual ATR trailing stop logic
 swing_atr = request.security(base_ticker, timeframe.period, ta.atr(swing_atr_trail_period), lookahead=barmerge.lookahead_off)
@@ -904,12 +913,7 @@ var bool swing_tp_hit = false
 var bool swing_sl_hit = false
 
 
-// Star counting for star-based exit
-if swing_in_trade
-    if swing_trade_type == "BUY" and swing_red_star
-        swing_star_count_since_entry += 1
-    else if swing_trade_type == "SELL" and swing_green_star
-        swing_star_count_since_entry += 1
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1171,20 +1175,20 @@ if swing_buy_entry and not swing_in_trade and barstate.isconfirmed
     swing_trade_type := "BUY"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    if not swing_use_star_based_exit
-        swing_stop_loss := swing_entry_price - swing_fixed_sl_points
-        swing_take_profit := swing_entry_price + swing_fixed_tp_points
+    
+    
+    swing_stop_loss := swing_entry_price - swing_fixed_sl_points
+    swing_take_profit := swing_entry_price + swing_fixed_tp_points
 
 if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
     swing_in_trade := true
     swing_trade_type := "SELL"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    if not swing_use_star_based_exit
-        swing_stop_loss := swing_entry_price + swing_fixed_sl_points
-        swing_take_profit := swing_entry_price - swing_fixed_tp_points
+    
+    
+    swing_stop_loss := swing_entry_price + swing_fixed_sl_points
+    swing_take_profit := swing_entry_price - swing_fixed_tp_points
 
 // SWING ATR EXIT LOGIC
 // ATR EXIT LOGIC
@@ -1214,7 +1218,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 
 // SWING FIXED SL/TP EXIT LOGIC
 // SWING FIXED SL/TP EXIT LOGIC
-if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_based_exit and barstate.isconfirmed
+if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
     if swing_trade_type == "BUY"
         if normal_low <= swing_stop_loss
             swing_exit_price := normal_close
@@ -1562,7 +1566,7 @@ plotshape(tbh_sell_condition, title="TBH Sell Signal", location=location.aboveba
 
 
 // ═════════════════════════════════════════════════════════════════
-// SWING PLOTS - INITIAL SL AND ATR TRAIL LINES (CORRECTED POSITIONING)
+// SWING PLOTS - INITIAL SL AND ATR TRAIL LINES
 // ═════════════════════════════════════════════════════════════════
 
 // Plot Swing Initial SL Line - Orange line
@@ -1584,13 +1588,6 @@ plot(swing_in_trade and swing_atr_trail_activated and swing_trade_type == "SELL"
      color=color.new(color.red, 30),
      linewidth=1,
      style=plot.style_line)
-
-// Entry price line for reference (optional)
-plot(swing_in_trade ? swing_entry_price : na,
-     title="Swing Entry Price",
-     color=color.new(color.blue, 50),
-     linewidth=1,
-     style=plot.style_circles)
 
 
 // ENHANCED OVERLAP WARNING SIGNALS
@@ -1850,16 +1847,16 @@ barcolor(tbh_in_trade and enable_tbh_strategy and tbh_trade_type == "BUY" ? colo
 
 
 // ═════════════════════════════════════════════════════════════════
-// SWING EXIT MANAGEMENT - INITIAL SL + ATR TRAIL (MATCHING TBH LOGIC)
+// SWING EXIT MANAGEMENT - PURE ATR TRAIL (NO STAR-BASED)
 // ═════════════════════════════════════════════════════════════════
 
-// Swing Exit Logic - Exactly like TBH
+// Swing Exit Logic - Exactly like TBH (No Star-Based)
 if swing_in_trade and barstate.isconfirmed
     swing_exit_triggered = false
     swing_exit_reason = ""
     swing_exit_price_calc = normal_close
     
-    // Check for SL hit (either initial or trail)
+    // ONLY SL HIT CHECK - NO STAR-BASED EXIT
     if swing_trade_type == "BUY" and normal_close <= swing_current_sl
         swing_exit_triggered := true
         swing_exit_reason := swing_atr_trail_activated ? "ATR Trail SL" : "Initial SL"
@@ -1869,13 +1866,7 @@ if swing_in_trade and barstate.isconfirmed
         swing_exit_reason := swing_atr_trail_activated ? "ATR Trail SL" : "Initial SL"
         swing_sl_hit := true
     
-    // Check for star-based exit (if enabled)
-    if swing_use_star_based_exit and not swing_exit_triggered and swing_star_count_since_entry >= 1
-        swing_exit_triggered := true
-        swing_exit_reason := "Star Exit"
-        swing_tp_hit := true
-    
-    // Check for auto exit
+    // Check for auto exit only
     if not swing_exit_triggered and isAfterSwingAutoExitTime()
         swing_exit_triggered := true
         swing_exit_reason := "Auto Exit"
