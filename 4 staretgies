@@ -279,15 +279,10 @@ swing_show_lime_red_signals = input.bool(true, title="Show Buy/Sell on Lime/Red 
 swing_T3Factor = input.float(defval=0.3, minval=0, maxval=100, step=0.1, title="Swing T3 Factor", group="Swing Strategy")
 swing_T3Length = input.int(defval=7, minval=1, title="Swing T3 Length", group="Swing Strategy")
 
-// Strategy Options - Pure Trailing Logic (Same as TBH)
-// Strategy Options - Pure Trailing Logic (Same as TBH) - NO STAR BASED
-// INITIAL STOP LOSS SETTINGS FOR SWING (Before ATR Trail Takes Over)
-swing_initial_sl_type = input.string("Fixed Points", title="Initial SL Type (Before Trail)", options=["Fixed Points", "Entry Candle Low"], group="Swing Strategy", tooltip="Initial SL used until ATR trail crosses this level")
-swing_fixed_sl_points = input.float(20.0, title="Fixed SL Points", group="Swing Strategy")
-swing_entry_candle_buffer = input.float(5.0, title="Entry Candle SL Buffer (Points)", minval=-100, maxval=50.0, group="Swing Strategy")
+// Strategy Options
+swing_use_star_based_exit = input.bool(true, title="Use Star-Based Exit (vs Fixed SL/TP)", group="Swing Strategy")
+swing_fixed_sl_points = input.float(20.0, title="Fixed SL Points (if not using star-based)", group="Swing Strategy")
 swing_fixed_tp_points = input.float(40.0, title="Fixed TP Points (if not using star-based)", group="Swing Strategy")
-
-
 
 swing_volume_ma_length = input.int(20, title="Volume MA Length", group="Swing Strategy")
 swing_volume_multiplier = input.float(1.0,step=0.1, title="Volume Multiplier", group="Swing Strategy")
@@ -506,18 +501,13 @@ var string swing_trade_type = ""
 var float swing_entry_price = na
 var int swing_entry_bar_index = na
 var int swing_entry_bar = na
-
+var int swing_star_count_since_entry = 0
 var bool swing_tp_hit_alert = false
 var bool swing_sl_hit_alert = false
 var float swing_trade_points_tp = 0.0
 var float swing_trade_points_sl = 0.0
 var float swing_stop_loss = na
 var float swing_take_profit = na
-var float swing_initial_sl = na  // Initial SL (Fixed/Candle based)
-var float swing_current_sl = na  // Current active SL (can switch to ATR trail)
-var bool swing_atr_trail_activated = false  // Flag when ATR trail takes over
-var float swing_entry_candle_low = na
-var float swing_entry_candle_high = na
 
 
 
@@ -646,7 +636,38 @@ if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
     swing_buy_signal := swing_buy_condition and isBiasAllowedForBuy()
     swing_sell_signal := swing_sell_condition and isBiasAllowedForSell()
 
+// SWING ENTRY PROCESSING
+if swing_buy_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "BUY"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    swing_entry_bar := bar_index
+    swing_star_count_since_entry := 0
+    
+    // Create entry label
+    label.new(bar_index, low - (high - low) * 0.1, 
+             text="SWING\nBUY", 
+             color=color.new(color.green, 0), 
+             textcolor=color.white, 
+             style=label.style_label_up, 
+             size=size.small)
 
+if swing_sell_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "SELL"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    swing_entry_bar := bar_index
+    swing_star_count_since_entry := 0
+    
+    // Create entry label
+    label.new(bar_index, high + (high - low) * 0.1, 
+             text="SWING\nSELL", 
+             color=color.new(color.red, 0), 
+             textcolor=color.white, 
+             style=label.style_label_down, 
+             size=size.small)
 
 
 
@@ -659,7 +680,9 @@ swing_low_squeeze = math.abs(swing_percentHL) < swing_percentSqueeze and swing_p
 swing_crossPlot = swing_o2 < swing_c2 ? swing_l2 : swing_h2
 swing_plotColor = swing_high_squeeze ? color.maroon : swing_low_squeeze ? color.teal : swing_o2 < swing_c2 ? color.lime : color.red
 
-
+// Signal detection
+swing_green_star = swing_o2 < swing_c2 and (swing_o2[1] >= swing_c2[1])
+swing_red_star = swing_o2 > swing_c2 and (swing_o2[1] <= swing_c2[1])
 
 swing_o2_cross_under_long = ta.crossunder(swing_o2, swing_c2)
 swing_c2_cross_over_short = ta.crossover(swing_o2, swing_c2)
@@ -694,9 +717,12 @@ swing_entry_allowed = enable_swing_strategy and not swing_in_trade and isSwingSt
 
 
 
-// SIMPLIFIED SWING SIGNAL DETECTION (NO STAR-BASED)
-swing_hat_buy_signal = swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter and swing_entry_allowed
-swing_hat_sell_signal = swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter and swing_entry_allowed
+swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isBiasAllowedForBuy())
+
+swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and isBiasAllowedForSell())
+swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed 
+swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed
+
 
 
 
@@ -709,8 +735,34 @@ if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
     swing_buy_signal := swing_buy_condition and isBiasAllowedForBuy()
     swing_sell_signal := swing_sell_condition and isBiasAllowedForSell()
 
+// SWING ENTRY PROCESSING
+if swing_buy_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "BUY"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    
+    // Create entry label
+    label.new(bar_index, low - (high - low) * 0.1, 
+             text="SWING\nBUY", 
+             color=color.new(color.green, 0), 
+             textcolor=color.white, 
+             style=label.style_label_up, 
+             size=size.small)
 
-
+if swing_sell_signal and not swing_in_trade
+    swing_in_trade := true
+    swing_trade_type := "SELL"
+    swing_entry_price := normal_close
+    swing_entry_bar_index := bar_index
+    
+    // Create entry label
+    label.new(bar_index, high + (high - low) * 0.1, 
+             text="SWING\nSELL", 
+             color=color.new(color.red, 0), 
+             textcolor=color.white, 
+             style=label.style_label_down, 
+             size=size.small)
 
 
 
@@ -729,6 +781,7 @@ swing_bias_allowed_sell = isBiasAllowedForSell()
 // Check if swing signals should be blocked by overlap filter
 swing_overlap_blocked = enable_overlap_filter and (tbh_in_trade)
 
+
 // Final swing signals with all filters applied
 swing_final_buy_signal = swing_hat_buy_signal and swing_bias_allowed_buy and not swing_overlap_blocked and not isEntryBlocked()
 swing_final_sell_signal = swing_hat_sell_signal and swing_bias_allowed_sell and not swing_overlap_blocked and not isEntryBlocked()
@@ -738,72 +791,46 @@ if swing_final_buy_signal or swing_final_sell_signal
     swing_signal_this_bar := true
 
 // Update any_strategy_active to include swing strategy
-any_strategy_active := tbh_in_trade or swing_in_trade
+any_strategy_active :=tbh_in_trade or swing_in_trade
 
-// ═════════════════════════════════════════════════════════════════
-// SWING ENTRY LOGIC - SINGLE CLEAN VERSION (NO STAR-BASED)
-// ═════════════════════════════════════════════════════════════════
-
-// Swing strategy trade entries - ONLY ATR TRAIL LOGIC
-if swing_final_buy_signal and not swing_in_trade and barstate.isconfirmed
+// Swing strategy trade entries with overlap filter
+if swing_final_buy_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "BUY"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_entry_candle_low := normal_low
-    swing_entry_candle_high := normal_high
-    swing_atr_trail_activated := false
+    swing_star_count_since_entry := 0
     
-    // Set initial SL based on type (same as TBH)
-    if swing_initial_sl_type == "Fixed Points"
-        swing_initial_sl := swing_entry_price - swing_fixed_sl_points
-    else if swing_initial_sl_type == "Entry Candle Low"
-        swing_initial_sl := swing_entry_candle_low - swing_entry_candle_buffer
-    
-    // Start with initial SL
-    swing_current_sl := swing_initial_sl
-    
-    // Create entry label
-    label.new(bar_index, low - (high - low) * 0.1, 
-             text="SWING\nBUY\nSL:" + str.tostring(swing_initial_sl, "#.#"), 
-             color=color.new(color.green, 0), 
-             textcolor=color.white, 
-             style=label.style_label_up, 
-             size=size.small)
+    // Calculate stop loss and take profit
+    if swing_use_star_based_exit
+        swing_stop_loss := na
+        swing_take_profit := na
+    else
+        swing_stop_loss := swing_entry_price - swing_fixed_sl_points
+        swing_take_profit := swing_entry_price + swing_fixed_tp_points
     
     // Alert
     if swing_enable_alerts
-        alert("Swing BUY Signal - Entry: " + str.tostring(swing_entry_price, "#.##") + " | Initial SL: " + str.tostring(swing_initial_sl, "#.##"), alert.freq_once_per_bar)
+        alert("Swing BUY Signal - Entry: " + str.tostring(swing_entry_price, "#.##"), alert.freq_once_per_bar)
 
-if swing_final_sell_signal and not swing_in_trade and barstate.isconfirmed
+if swing_final_sell_signal and not swing_in_trade
     swing_in_trade := true
     swing_trade_type := "SELL"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    swing_entry_candle_low := normal_low
-    swing_entry_candle_high := normal_high
-    swing_atr_trail_activated := false
+    swing_star_count_since_entry := 0
     
-    // Set initial SL based on type (same as TBH)
-    if swing_initial_sl_type == "Fixed Points"
-        swing_initial_sl := swing_entry_price + swing_fixed_sl_points
-    else if swing_initial_sl_type == "Entry Candle Low"
-        swing_initial_sl := swing_entry_candle_high + swing_entry_candle_buffer
-    
-    // Start with initial SL
-    swing_current_sl := swing_initial_sl
-    
-    // Create entry label
-    label.new(bar_index, high + (high - low) * 0.1, 
-             text="SWING\nSELL\nSL:" + str.tostring(swing_initial_sl, "#.#"), 
-             color=color.new(color.red, 0), 
-             textcolor=color.white, 
-             style=label.style_label_down, 
-             size=size.small)
+    // Calculate stop loss and take profit
+    if swing_use_star_based_exit
+        swing_stop_loss := na
+        swing_take_profit := na
+    else
+        swing_stop_loss := swing_entry_price + swing_fixed_sl_points
+        swing_take_profit := swing_entry_price - swing_fixed_tp_points
     
     // Alert
     if swing_enable_alerts
-        alert("Swing SELL Signal - Entry: " + str.tostring(swing_entry_price, "#.##") + " | Initial SL: " + str.tostring(swing_initial_sl, "#.##"), alert.freq_once_per_bar)
+        alert("Swing SELL Signal - Entry: " + str.tostring(swing_entry_price, "#.##"), alert.freq_once_per_bar)
 
 // Dual ATR trailing stop logic
 swing_atr = request.security(base_ticker, timeframe.period, ta.atr(swing_atr_trail_period), lookahead=barmerge.lookahead_off)
@@ -827,32 +854,15 @@ else
 
 // Exit flags
 
-// ATR TRAIL ACTIVATION LOGIC - Switch from initial SL to ATR trail when trail crosses initial SL
-if swing_in_trade and swing_enable_atr_trail_exit and not swing_atr_trail_activated
-    if swing_trade_type == "BUY"
-        // Switch to ATR trail when it crosses above initial SL
-        if swing_lower_atr_trail > swing_initial_sl
-            swing_atr_trail_activated := true
-            swing_current_sl := swing_lower_atr_trail
-    else if swing_trade_type == "SELL"
-        // Switch to ATR trail when it crosses below initial SL
-        if swing_upper_atr_trail < swing_initial_sl
-            swing_atr_trail_activated := true
-            swing_current_sl := swing_upper_atr_trail
-
-// Update current SL if ATR trail is active
-if swing_in_trade and swing_atr_trail_activated
-    if swing_trade_type == "BUY"
-        swing_current_sl := swing_lower_atr_trail
-    else if swing_trade_type == "SELL"
-        swing_current_sl := swing_upper_atr_trail
-
 var bool swing_star_exit_alert = false
-var bool swing_tp_hit = false
-var bool swing_sl_hit = false
 
 
-
+// Star counting for star-based exit
+if swing_in_trade
+    if swing_trade_type == "BUY" and swing_red_star
+        swing_star_count_since_entry += 1
+    else if swing_trade_type == "SELL" and swing_green_star
+        swing_star_count_since_entry += 1
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1114,20 +1124,20 @@ if swing_buy_entry and not swing_in_trade and barstate.isconfirmed
     swing_trade_type := "BUY"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    
-    
-    swing_stop_loss := swing_entry_price - swing_fixed_sl_points
-    swing_take_profit := swing_entry_price + swing_fixed_tp_points
+    swing_star_count_since_entry := 0
+    if not swing_use_star_based_exit
+        swing_stop_loss := swing_entry_price - swing_fixed_sl_points
+        swing_take_profit := swing_entry_price + swing_fixed_tp_points
 
 if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
     swing_in_trade := true
     swing_trade_type := "SELL"
     swing_entry_price := normal_close
     swing_entry_bar := bar_index
-    
-    
-    swing_stop_loss := swing_entry_price + swing_fixed_sl_points
-    swing_take_profit := swing_entry_price - swing_fixed_tp_points
+    swing_star_count_since_entry := 0
+    if not swing_use_star_based_exit
+        swing_stop_loss := swing_entry_price + swing_fixed_sl_points
+        swing_take_profit := swing_entry_price - swing_fixed_tp_points
 
 // SWING ATR EXIT LOGIC
 // ATR EXIT LOGIC
@@ -1157,7 +1167,7 @@ if swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
 
 // SWING FIXED SL/TP EXIT LOGIC
 // SWING FIXED SL/TP EXIT LOGIC
-if not swing_enable_atr_trail_exit and swing_in_trade and barstate.isconfirmed
+if not swing_enable_atr_trail_exit and swing_in_trade and not swing_use_star_based_exit and barstate.isconfirmed
     if swing_trade_type == "BUY"
         if normal_low <= swing_stop_loss
             swing_exit_price := normal_close
@@ -1503,31 +1513,6 @@ plot(tbh_in_trade and enable_tbh_strategy and tbh_using_fixed_tp ? tbh_take_prof
 plotshape(tbh_buy_condition, title="TBH Buy Signal", location=location.belowbar, color=color.lime, style=shape.labelup, text="TBH-TRAIL\nBUY", size=size.small)
 plotshape(tbh_sell_condition, title="TBH Sell Signal", location=location.abovebar, color=color.fuchsia, style=shape.labeldown, text="TBH-TRAIL\nSELL", size=size.small)
 
-
-// ═════════════════════════════════════════════════════════════════
-// SWING PLOTS - INITIAL SL AND ATR TRAIL LINES
-// ═════════════════════════════════════════════════════════════════
-
-// Plot Swing Initial SL Line - Orange line
-plot(swing_in_trade and not swing_atr_trail_activated ? swing_initial_sl : na, 
-     title="Swing Initial SL", 
-     color=color.new(color.orange, 0), 
-     linewidth=2, 
-     style=plot.style_line)
-
-// Plot Swing ATR Trail SL Line - Red lines when active
-plot(swing_in_trade and swing_atr_trail_activated and swing_trade_type == "BUY" ? swing_lower_atr_trail : na,
-     title="Swing ATR Trail SL (BUY)",
-     color=color.new(color.red, 30),
-     linewidth=1,
-     style=plot.style_line)
-
-plot(swing_in_trade and swing_atr_trail_activated and swing_trade_type == "SELL" ? swing_upper_atr_trail : na,
-     title="Swing ATR Trail SL (SELL)", 
-     color=color.new(color.red, 30),
-     linewidth=1,
-     style=plot.style_line)
-
 // ENHANCED OVERLAP WARNING SIGNALS
 overlap_detected = enable_overlap_filter and signals_count > 1 and not any_strategy_active
 active_trade_blocks = enable_overlap_filter and any_strategy_active and (tbh_has_signal)
@@ -1614,25 +1599,33 @@ plotshape(
      color=color.purple, text='SWING\nSELL', textcolor=color.white, size=size.small)
 
 // ─── Swing exit labels (TP and SL)
-// ─── Swing exit labels (TP and SL)
 if swing_tp_hit_alert and enable_swing_strategy
     actual_tp_points = math.abs(swing_trade_points_tp)
     label_y = swing_trade_type == "BUY" ? high + (swing_atr * 2) : low - (swing_atr * 2)
     label_style = swing_trade_type == "BUY" ? label.style_label_down : label.style_label_up
-    label.new(x=bar_index, y=label_y, text="✅ SWING TP +" + str.tostring(math.round(actual_tp_points, 1)) + " pts", style=label_style, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
+    exit_type = swing_use_star_based_exit ? "STAR" : "FIXED"
+    label.new(x=bar_index, y=label_y, text="✅ SWING " + exit_type + " TP +" + str.tostring(math.round(actual_tp_points, 1)) + " pts", style=label_style, color=color.new(color.blue, 0), textcolor=color.white, size=size.small)
 
 if swing_sl_hit_alert and enable_swing_strategy
     actual_sl_points = math.abs(swing_trade_points_sl)
     label_y = swing_trade_type == "BUY" ? low - (swing_atr * 2) : high + (swing_atr * 2)
     label_style = swing_trade_type == "BUY" ? label.style_label_up : label.style_label_down
-    label.new(x=bar_index, y=label_y, text="❌ SWING SL -" + str.tostring(math.round(actual_sl_points, 1)) + " pts", style=label_style, color=color.new(color.purple, 0), textcolor=color.white, size=size.small)
+    exit_type = swing_use_star_based_exit ? "STAR" : "FIXED"
+    label.new(x=bar_index, y=label_y, text="❌ SWING " + exit_type + " SL -" + str.tostring(math.round(actual_sl_points, 1)) + " pts", style=label_style, color=color.new(color.purple, 0), textcolor=color.white, size=size.small)
+
 // ─── Swing background highlighting
 bgcolor(
      swing_in_trade and swing_trade_type == "BUY" and enable_swing_strategy ? color.new(color.blue, 95) :
      swing_in_trade and swing_trade_type == "SELL" and enable_swing_strategy ? color.new(color.purple, 95) : na,
      title="Swing Active Trade Background")
 
-// Removed swing star background highlighting - no star-based logic
+bgcolor(
+     swing_green_star and not swing_in_trade and enable_swing_strategy ? color.new(color.blue, 90) : na,
+     title="Swing Green Star Signal")
+
+bgcolor(
+     swing_red_star and not swing_in_trade and enable_swing_strategy ? color.new(color.purple, 90) : na,
+     title="Swing Red Star Signal")
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════
@@ -1711,7 +1704,35 @@ alertcondition(tbh_sl_hit, 'TBH-TRAIL Stop Loss', 'TBH-TRAIL Stop Loss Hit')
 
 
 
+// SWING Alerts
+if swing_enable_alerts and enable_swing_strategy
+    if swing_buy_entry
+        exit_info = swing_use_star_based_exit ? " | Exit Mode: Star-based (exit on red star)" : " | Exit Mode: Fixed SL/TP"
+        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + getBiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
+        alert("SWING BUY SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + bias_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    
+    if swing_sell_entry
+        exit_info = swing_use_star_based_exit ? " | Exit Mode: Star-based (exit on green star)" : " | Exit Mode: Fixed SL/TP"
+        bias_info = enable_bias_confluence ? " | Swing Bias: " + current_nifty_bias + " (" + getBiasSpreadInfo() + ")" : " | Swing Bias: DISABLED"
+        alert("SWING SELL SIGNAL: Entry at " + str.tostring(close, "#.##") + exit_info + bias_info + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    if swing_tp_hit_alert
+        exit_type = swing_use_star_based_exit ? "STAR-BASED" : "FIXED"
+        alert("SWING TAKE PROFIT (" + exit_type + "): Position closed with profit at " + str.tostring(close, "#.##") + " | Points: +" + str.tostring(math.abs(swing_trade_points_tp), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
+    
+    if swing_sl_hit_alert
+        exit_type = swing_use_star_based_exit ? "STAR-BASED" : "FIXED"
+        alert("SWING STOP LOSS (" + exit_type + "): Position closed with loss at " + str.tostring(close, "#.##") + " | Points: -" + str.tostring(math.abs(swing_trade_points_sl), "#.##") + " | Time: " + getCurrentTimestamp(), alert.freq_once_per_bar)
 
+// Swing Alert Conditions
+alertcondition(swing_buy_entry and enable_swing_strategy, 'Swing Buy Signal', 'Swing Buy Signal Triggered')
+alertcondition(swing_sell_entry and enable_swing_strategy, 'Swing Sell Signal', 'Swing Sell Signal Triggered')
+alertcondition(swing_tp_hit_alert and enable_swing_strategy, 'Swing Take Profit', 'Swing Take Profit Hit')
+alertcondition(swing_sl_hit_alert and enable_swing_strategy, 'Swing Stop Loss', 'Swing Stop Loss Hit')
+
+// Add to existing swing alert logic
+if swing_auto_exit_alert and swing_enable_alerts
+    alert("Swing Auto Exit: " + swing_trade_type + " at " + str.tostring(swing_exit_price))
+    swing_auto_exit_alert := false
 
 
 // Reset Swing flags after processing
@@ -1745,90 +1766,3 @@ bgcolor(tbh_in_trade and tbh_supertrend_activated and not tbh_supertrend_activat
 // Color candles based on active trades - Updated with 3 strategies
 barcolor(tbh_in_trade and enable_tbh_strategy and tbh_trade_type == "BUY" ? color.new(color.aqua, 70) :
          tbh_in_trade and enable_tbh_strategy and tbh_trade_type == "SELL" ? color.new(color.fuchsia, 70) : na)
-
-
-
-// ═════════════════════════════════════════════════════════════════
-// SWING EXIT MANAGEMENT - PURE ATR TRAIL (NO STAR-BASED)
-// ═════════════════════════════════════════════════════════════════
-
-// Swing Exit Logic - Exactly like TBH (No Star-Based)
-if swing_in_trade and barstate.isconfirmed
-    swing_exit_triggered = false
-    swing_exit_reason = ""
-    swing_exit_price_calc = normal_close
-    
-    // ONLY SL HIT CHECK - NO STAR-BASED EXIT
-    if swing_trade_type == "BUY" and normal_close <= swing_current_sl
-        swing_exit_triggered := true
-        swing_exit_reason := swing_atr_trail_activated ? "ATR Trail SL" : "Initial SL"
-        swing_sl_hit := true
-    else if swing_trade_type == "SELL" and normal_close >= swing_current_sl
-        swing_exit_triggered := true
-        swing_exit_reason := swing_atr_trail_activated ? "ATR Trail SL" : "Initial SL"
-        swing_sl_hit := true
-    
-    // Check for auto exit only
-    if not swing_exit_triggered and isAfterSwingAutoExitTime()
-        swing_exit_triggered := true
-        swing_exit_reason := "Auto Exit"
-        swing_tp_hit := true
-    
-    // Process exit
-    if swing_exit_triggered
-        swing_in_trade := false
-        swing_exit_price := swing_exit_price_calc
-        
-        // Calculate points
-        direction = swing_trade_type == "BUY" ? 1 : -1
-        raw_points = (swing_exit_price - swing_entry_price) * direction
-        
-        // Update performance tracking
-        if swing_tp_hit
-            swing_trade_points_tp := raw_points
-            swing_tp_count += 1
-            swing_tp_hit_alert := true
-            
-            // Update combined performance tracking
-            array.push(combined_trade_months, month(time))
-            array.push(combined_trade_years, year(time))
-            array.push(combined_trade_was_tp, true)
-            array.push(combined_trade_points, raw_points)
-            array.push(combined_trade_strategy, "SWING")
-            combined_total_tp_count += 1
-            combined_total_tp_points += raw_points
-            
-        else if swing_sl_hit
-            swing_trade_points_sl := raw_points
-            swing_sl_count += 1
-            swing_sl_hit_alert := true
-            
-            // Update combined performance tracking
-            array.push(combined_trade_months, month(time))
-            array.push(combined_trade_years, year(time))
-            array.push(combined_trade_was_tp, false)
-            array.push(combined_trade_points, raw_points)
-            array.push(combined_trade_strategy, "SWING")
-            combined_total_sl_count += 1
-            combined_total_sl_points += raw_points
-        
-        // Create exit label
-        label_color = swing_tp_hit ? color.green : color.red
-        label_text = "SWING\n" + swing_exit_reason + "\n" + str.tostring(raw_points, "#.#") + "pts"
-        
-        label.new(bar_index, swing_trade_type == "BUY" ? high + (high - low) * 0.1 : low - (high - low) * 0.1,
-                 text=label_text,
-                 color=color.new(label_color, 20),
-                 textcolor=color.white,
-                 style=swing_trade_type == "BUY" ? label.style_label_down : label.style_label_up,
-                 size=size.small)
-        
-        // Alert
-        if swing_enable_alerts
-            alert("Swing " + swing_exit_reason + " - Exit: " + str.tostring(swing_exit_price, "#.##") + " | Points: " + str.tostring(raw_points, "#.#"), alert.freq_once_per_bar)
-        
-        // Reset flags
-        swing_tp_hit := false
-        swing_sl_hit := false
-        swing_atr_trail_activated := false
-        swing_trade_type := ""
