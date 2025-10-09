@@ -42,6 +42,9 @@ enable_swing_strategy = input.bool(true, title="✅ Enable Swing (Heikin Ashi) S
 // BIAS CONFLUENCE TOGGLE
 enable_bias_confluence = input.bool(true, title="✅ Enable Nifty Bias Confluence", tooltip="Requires BULL bias for BUY signals and BEAR bias for SELL signals", group="Strategy Toggles")
 
+// PREVIOUS CANDLE BIAS CHECK TOGGLE
+enable_previous_bias_check = input.bool(false, title="✅ Enable Previous Candle Bias Check", tooltip="Requires both current AND previous candle to have same bias for signals", group="Strategy Toggles")
+
 
 // ENHANCED OVERLAP FILTER
 enable_overlap_filter = input.bool(true, title="✅ Enable Signal Overlap Filter", tooltip="Prevents multiple strategy signals when any strategy has active trade", group="Strategy Toggles")
@@ -173,19 +176,30 @@ if barstate.isconfirmed
     bias_losers_count := temp_losers_count
     bias_unchanged_count := temp_unchanged_count
     
+
     bias_spread := bias_gainers_weight - bias_losers_weight
     current_nifty_bias := bias_spread > bias_bull_threshold ? "BULL" : bias_spread < bias_bear_threshold ? "BEAR" : "SIDEWAYS"
 
-// Bias confluence functions
+// Store previous bias for comparison
+var string previous_nifty_bias = "SIDEWAYS"
+if barstate.isconfirmed
+    previous_nifty_bias := current_nifty_bias[1]
+
+
+// Enhanced bias confluence functions with previous candle check
 isBiasAllowedForBuy() =>
     if not enable_bias_confluence
         true
+    else if enable_previous_bias_check
+        current_nifty_bias == "BULL" and previous_nifty_bias == "BULL"
     else
         current_nifty_bias == "BULL"
 
 isBiasAllowedForSell() =>
     if not enable_bias_confluence
         true
+    else if enable_previous_bias_check
+        current_nifty_bias == "BEAR" and previous_nifty_bias == "BEAR"
     else
         current_nifty_bias == "BEAR"
 
