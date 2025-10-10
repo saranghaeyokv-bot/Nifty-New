@@ -621,14 +621,15 @@ swing_htf_auto = timeframe.period == '1' ? '5' :
 
 swing_htf_selected = swing_htf_mode == "Auto" ? swing_htf_auto : swing_htf_custom
 
-// HTF Heikin Ashi data
-swing_htf_ha_ticker = ticker.heikinashi(syminfo.tickerid)
-swing_htf_high = request.security(swing_htf_ha_ticker, swing_htf_selected, high[1], lookahead=barmerge.lookahead_on)
-swing_htf_low = request.security(swing_htf_ha_ticker, swing_htf_selected, low[1], lookahead=barmerge.lookahead_on)
-swing_htf_close = request.security(swing_htf_ha_ticker, swing_htf_selected, close[1], lookahead=barmerge.lookahead_on)
+// HTF Heikin Ashi data (only when enabled)
+swing_htf_ha_ticker = swing_enable_htf_confluence ? ticker.heikinashi(syminfo.tickerid) : syminfo.tickerid
+swing_htf_high = swing_enable_htf_confluence ? request.security(swing_htf_ha_ticker, swing_htf_selected, high[1], lookahead=barmerge.lookahead_on) : high
+swing_htf_low = swing_enable_htf_confluence ? request.security(swing_htf_ha_ticker, swing_htf_selected, low[1], lookahead=barmerge.lookahead_on) : low
+swing_htf_close = swing_enable_htf_confluence ? request.security(swing_htf_ha_ticker, swing_htf_selected, close[1], lookahead=barmerge.lookahead_on) : close
 
-// HTF ATR
-swing_htf_atr = request.security(swing_htf_ha_ticker, swing_htf_selected, ta.atr(swing_htf_atr_period)[1], lookahead=barmerge.lookahead_on)
+// HTF ATR (only when enabled)
+swing_htf_atr = swing_enable_htf_confluence ? request.security(swing_htf_ha_ticker, swing_htf_selected, ta.atr(swing_htf_atr_period)[1], lookahead=barmerge.lookahead_on) : ta.atr(swing_htf_atr_period)
+
 
 // HTF Supertrend calculation
 swing_htf_hl2 = (swing_htf_high + swing_htf_low) / 2
@@ -639,28 +640,20 @@ var float swing_htf_tup = na
 var float swing_htf_tdown = na
 var int swing_htf_trend = 1
 
-swing_htf_tup := swing_htf_close[1] > nz(swing_htf_tup[1]) ? math.max(swing_htf_up, nz(swing_htf_tup[1])) : swing_htf_up
-swing_htf_tdown := swing_htf_close[1] < nz(swing_htf_tdown[1]) ? math.min(swing_htf_dn, nz(swing_htf_tdown[1])) : swing_htf_dn
-swing_htf_trend := swing_htf_close > nz(swing_htf_tdown[1]) ? 1 : swing_htf_close < nz(swing_htf_tup[1]) ? -1 : nz(swing_htf_trend[1], 1)
-
+if swing_enable_htf_confluence
+    swing_htf_tup := swing_htf_close[1] > nz(swing_htf_tup[1]) ? math.max(swing_htf_up, nz(swing_htf_tup[1])) : swing_htf_up
+    swing_htf_tdown := swing_htf_close[1] < nz(swing_htf_tdown[1]) ? math.min(swing_htf_dn, nz(swing_htf_tdown[1])) : swing_htf_dn
+    swing_htf_trend := swing_htf_close > nz(swing_htf_tdown[1]) ? 1 : swing_htf_close < nz(swing_htf_tup[1]) ? -1 : nz(swing_htf_trend[1], 1)
+else
+    swing_htf_trend := 1  // Default to bullish when disabled
 swing_htf_supertrend = swing_htf_trend == 1 ? swing_htf_tup : swing_htf_tdown
 
 // HTF Supertrend confluence functions
-isHTFSupertrendBullish() => swing_htf_trend == 1
-isHTFSupertrendBearish() => swing_htf_trend == -1
-
-// HTF confluence check functions
-isHTFConfluenceValidForBuy() =>
-    if not swing_enable_htf_confluence
-        true
-    else
-        normal_close > swing_htf_supertrend and isHTFSupertrendBullish()
-
-isHTFConfluenceValidForSell() =>
-    if not swing_enable_htf_confluence
-        true
-    else
-        normal_close < swing_htf_supertrend and isHTFSupertrendBearish()
+// HTF confluence validation (direct boolean expressions)
+swing_htf_bullish = swing_htf_trend == 1
+swing_htf_bearish = swing_htf_trend == -1
+swing_htf_buy_confluence = not swing_enable_htf_confluence or (normal_close > swing_htf_supertrend and swing_htf_bullish)
+swing_htf_sell_confluence = not swing_enable_htf_confluence or (normal_close < swing_htf_supertrend and swing_htf_bearish)
 
 swing_gd(src, length, factor) => 
     ta.ema(src, length) * (1 + factor) - ta.ema(ta.ema(src, length), length) * factor
@@ -781,10 +774,9 @@ swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_o
 swing_entry_allowed = enable_swing_strategy and not swing_in_trade and isSwingStartTimeValid()
 
 
-swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_green_star)) and swing_entry_allowed and isBiasAllowedForBuy() and isHTFConfluenceValidForBuy())
+swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_green_star)) and swing_entry_allowed and isBiasAllowedForBuy() and swing_htf_buy_confluence)
 
-swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_red_star)) and swing_entry_allowed and isBiasAllowedForSell() and isHTFConfluenceValidForSell())
-
+swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_red_star)) and swing_entry_allowed and isBiasAllowedForSell() and swing_htf_sell_confluence)
 
 swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed 
 swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed
