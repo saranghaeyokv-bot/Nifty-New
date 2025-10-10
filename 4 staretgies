@@ -295,7 +295,12 @@ swing_atr_trail_mult = input.float(2.5, step=0.1,title="ATR Trail Multiplier", g
 
 swing_enable_alerts = input.bool(true, title="Enable Swing Alerts", group="Swing Strategy")
 
-
+// HTF SUPERTREND CONFLUENCE SETTINGS
+swing_enable_htf_confluence = input.bool(false, title="✅ Enable HTF Supertrend Confluence", tooltip="Requires HTF supertrend alignment for swing signals", group="Swing Strategy")
+swing_htf_mode = input.string("Auto", title="HTF Method", options=["Auto", "User Defined"], group="Swing Strategy")
+swing_htf_custom = input.timeframe("5", title="Custom HTF (if User Defined selected)", group="Swing Strategy")
+swing_htf_atr_period = input.int(7, title="HTF Supertrend ATR Period", minval=1, maxval=100, group="Swing Strategy")
+swing_htf_atr_mult = input.float(2.0, title="HTF Supertrend ATR Multiplier", minval=0.5, maxval=100, step=0.1, group="Swing Strategy")
 
 // ═══════════════════════════════════════════════════════════════════════════════════
 // GLOBAL DISPLAY SETTINGS
@@ -596,6 +601,67 @@ tbh_sell_supertrend = ta.crossunder(close, tbh_supertrend)
 
 swing_T3FactorCalc = swing_T3Factor * 0.10
 
+// ═════════════════════════════════════════════════════════════════
+// HTF SUPERTREND CALCULATION FOR SWING CONFLUENCE
+// ═════════════════════════════════════════════════════════════════
+
+// Auto HTF determination
+swing_htf_auto = timeframe.period == '1' ? '5' : 
+                 timeframe.period == '3' ? '15' : 
+                 timeframe.period == '5' ? '15' : 
+                 timeframe.period == '15' ? '60' : 
+                 timeframe.period == '30' ? '120' : 
+                 timeframe.period == '45' ? '120' : 
+                 timeframe.period == '60' ? '240' : 
+                 timeframe.period == '120' ? '240' : 
+                 timeframe.period == '180' ? '240' : 
+                 timeframe.period == '240' ? 'D' : 
+                 timeframe.period == 'D' ? 'W' :
+                 timeframe.period == 'W' ? '5W' : 'D'
+
+swing_htf_selected = swing_htf_mode == "Auto" ? swing_htf_auto : swing_htf_custom
+
+// HTF Heikin Ashi data
+swing_htf_ha_ticker = ticker.heikinashi(syminfo.tickerid)
+swing_htf_high = request.security(swing_htf_ha_ticker, swing_htf_selected, high[1], lookahead=barmerge.lookahead_on)
+swing_htf_low = request.security(swing_htf_ha_ticker, swing_htf_selected, low[1], lookahead=barmerge.lookahead_on)
+swing_htf_close = request.security(swing_htf_ha_ticker, swing_htf_selected, close[1], lookahead=barmerge.lookahead_on)
+
+// HTF ATR
+swing_htf_atr = request.security(swing_htf_ha_ticker, swing_htf_selected, ta.atr(swing_htf_atr_period)[1], lookahead=barmerge.lookahead_on)
+
+// HTF Supertrend calculation
+swing_htf_hl2 = (swing_htf_high + swing_htf_low) / 2
+swing_htf_up = swing_htf_hl2 - (swing_htf_atr_mult * swing_htf_atr)
+swing_htf_dn = swing_htf_hl2 + (swing_htf_atr_mult * swing_htf_atr)
+
+var float swing_htf_tup = na
+var float swing_htf_tdown = na
+var int swing_htf_trend = 1
+
+swing_htf_tup := swing_htf_close[1] > nz(swing_htf_tup[1]) ? math.max(swing_htf_up, nz(swing_htf_tup[1])) : swing_htf_up
+swing_htf_tdown := swing_htf_close[1] < nz(swing_htf_tdown[1]) ? math.min(swing_htf_dn, nz(swing_htf_tdown[1])) : swing_htf_dn
+swing_htf_trend := swing_htf_close > nz(swing_htf_tdown[1]) ? 1 : swing_htf_close < nz(swing_htf_tup[1]) ? -1 : nz(swing_htf_trend[1], 1)
+
+swing_htf_supertrend = swing_htf_trend == 1 ? swing_htf_tup : swing_htf_tdown
+
+// HTF Supertrend confluence functions
+isHTFSupertrendBullish() => swing_htf_trend == 1
+isHTFSupertrendBearish() => swing_htf_trend == -1
+
+// HTF confluence check functions
+isHTFConfluenceValidForBuy() =>
+    if not swing_enable_htf_confluence
+        true
+    else
+        normal_close > swing_htf_supertrend and isHTFSupertrendBullish()
+
+isHTFConfluenceValidForSell() =>
+    if not swing_enable_htf_confluence
+        true
+    else
+        normal_close < swing_htf_supertrend and isHTFSupertrendBearish()
+
 swing_gd(src, length, factor) => 
     ta.ema(src, length) * (1 + factor) - ta.ema(ta.ema(src, length), length) * factor
 
@@ -715,11 +781,11 @@ swing_consecutive_color_count := swing_bar_is_lime_or_red ? (swing_bar_is_lime_o
 swing_entry_allowed = enable_swing_strategy and not swing_in_trade and isSwingStartTimeValid()
 
 
+swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_green_star)) and swing_entry_allowed and isBiasAllowedForBuy() and isHTFConfluenceValidForBuy())
+
+swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_red_star)) and swing_entry_allowed and isBiasAllowedForSell() and isHTFConfluenceValidForSell())
 
 
-swing_buy_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 < swing_c2 and close > swing_crossPlot and swing_is_green_candle and swing_vol_filter)) and isBiasAllowedForBuy())
-
-swing_sell_signal_condition = (((swing_show_lime_red_signals and swing_is_normal_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter) or (swing_is_squeeze_bar and swing_o2 > swing_c2 and close < swing_crossPlot and swing_is_red_candle and swing_vol_filter)) and isBiasAllowedForSell())
 swing_hat_buy_signal = swing_buy_signal_condition and swing_entry_allowed 
 swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed
 
@@ -1493,6 +1559,12 @@ if barstate.islast and show_performance_table
 supertrend_color = tbh_direction == -1 ? color.green : color.red
 plot(show_tbh_supertrend and enable_tbh_strategy ? tbh_supertrend : na, title="TBH Active Supertrend", color=supertrend_color, linewidth=3)
 
+
+plot(show_tbh_supertrend ? tbh_supertrend : na, color=tbh_direction == -1 ? color.green : color.red, linewidth=2, title="TBH Supertrend")
+
+// HTF Supertrend display
+swing_htf_color = swing_htf_trend == 1 ? color.blue : color.red
+plot(swing_enable_htf_confluence ? swing_htf_supertrend : na, color=swing_htf_color, linewidth=3, title="Swing HTF Supertrend")
 
 // Plot TBH Current SL and TP based on mode
 tbh_sl_color = if tbh_in_trade
