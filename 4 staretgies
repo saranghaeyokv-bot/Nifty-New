@@ -608,7 +608,7 @@ swing_T3FactorCalc = swing_T3Factor * 0.10
 // Auto HTF determination
 swing_htf_auto = timeframe.period == '1' ? '5' : 
                  timeframe.period == '3' ? '15' : 
-                 timeframe.period == '5' ? '15' : 
+                 timeframe.period == '5' ? '6' : 
                  timeframe.period == '15' ? '60' : 
                  timeframe.period == '30' ? '120' : 
                  timeframe.period == '45' ? '120' : 
@@ -686,47 +686,7 @@ swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSw
 swing_buy_signal = false
 swing_sell_signal = false
 
-// Basic swing signal logic based on Heikin Ashi T3 calculations
-if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
-    // Example signal conditions - adjust these based on your specific HAT strategy
-    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
-    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
-    
-    swing_buy_signal := swing_buy_condition and isBiasAllowedForBuy()
-    swing_sell_signal := swing_sell_condition and isBiasAllowedForSell()
 
-// SWING ENTRY PROCESSING
-if swing_buy_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "BUY"
-    swing_entry_price := normal_close
-    swing_entry_bar_index := bar_index
-    swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    
-    // Create entry label
-    label.new(bar_index, low - (high - low) * 0.1, 
-             text="SWING\nBUY", 
-             color=color.new(color.green, 0), 
-             textcolor=color.white, 
-             style=label.style_label_up, 
-             size=size.small)
-
-if swing_sell_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "SELL"
-    swing_entry_price := normal_close
-    swing_entry_bar_index := bar_index
-    swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    
-    // Create entry label
-    label.new(bar_index, high + (high - low) * 0.1, 
-             text="SWING\nSELL", 
-             color=color.new(color.red, 0), 
-             textcolor=color.white, 
-             style=label.style_label_down, 
-             size=size.small)
 
 
 
@@ -784,43 +744,6 @@ swing_hat_sell_signal = swing_sell_signal_condition and swing_entry_allowed
 
 
 
-// Basic swing signal logic based on Heikin Ashi T3 calculations
-if barstate.isconfirmed and enable_swing_strategy and swing_signal_allowed
-    // Example signal conditions - adjust these based on your specific HAT strategy
-    swing_buy_condition = swing_c2 > swing_o2 and swing_c2[1] <= swing_o2[1]
-    swing_sell_condition = swing_c2 < swing_o2 and swing_c2[1] >= swing_o2[1]
-    
-    swing_buy_signal := swing_buy_condition and isBiasAllowedForBuy()
-    swing_sell_signal := swing_sell_condition and isBiasAllowedForSell()
-
-// SWING ENTRY PROCESSING
-if swing_buy_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "BUY"
-    swing_entry_price := normal_close
-    swing_entry_bar_index := bar_index
-    
-    // Create entry label
-    label.new(bar_index, low - (high - low) * 0.1, 
-             text="SWING\nBUY", 
-             color=color.new(color.green, 0), 
-             textcolor=color.white, 
-             style=label.style_label_up, 
-             size=size.small)
-
-if swing_sell_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "SELL"
-    swing_entry_price := normal_close
-    swing_entry_bar_index := bar_index
-    
-    // Create entry label
-    label.new(bar_index, high + (high - low) * 0.1, 
-             text="SWING\nSELL", 
-             color=color.new(color.red, 0), 
-             textcolor=color.white, 
-             style=label.style_label_down, 
-             size=size.small)
 
 
 
