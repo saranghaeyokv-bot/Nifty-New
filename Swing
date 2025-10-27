@@ -1088,45 +1088,6 @@ if swing_final_buy_signal or swing_final_sell_signal
 // Update any_strategy_active to include swing strategy
 any_strategy_active := bb_in_trade or breakout_in_trade or tbh_in_trade or swing_in_trade
 
-// Swing strategy trade entries with overlap filter
-if swing_final_buy_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "BUY"
-    swing_entry_price := close
-    swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    
-    // Calculate stop loss and take profit
-    if swing_use_star_based_exit
-        swing_stop_loss := na
-        swing_take_profit := na
-    else
-        swing_stop_loss := close - swing_fixed_sl_points
-        swing_take_profit := close + swing_fixed_tp_points
-    
-    // Alert
-    if swing_enable_alerts
-        alert("Swing BUY Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
-
-if swing_final_sell_signal and not swing_in_trade
-    swing_in_trade := true
-    swing_trade_type := "SELL"
-    swing_entry_price := close
-    swing_entry_bar := bar_index
-    swing_star_count_since_entry := 0
-    
-    // Calculate stop loss and take profit
-    if swing_use_star_based_exit
-        swing_stop_loss := na
-        swing_take_profit := na
-    else
-        swing_stop_loss := close + swing_fixed_sl_points
-        swing_take_profit := close - swing_fixed_tp_points
-    
-    // Alert
-    if swing_enable_alerts
-        alert("Swing SELL Signal - Entry: " + str.tostring(close, "#.##"), alert.freq_once_per_bar)
-
 // Dual ATR trailing stop logic
 swing_atr = ta.atr(swing_atr_trail_period)
 swing_long_stop_raw = low - swing_atr_trail_mult * swing_atr
@@ -1263,18 +1224,17 @@ bb_signal_allowed = not overlap_filter_blocks_non_swing and (not same_bar_overla
 tbh_signal_allowed = not overlap_filter_blocks_non_swing and (not same_bar_overlap or (same_bar_overlap and tbh_has_signal and not bb_has_signal))
 breakout_signal_allowed = not overlap_filter_blocks_non_swing and (not same_bar_overlap or (same_bar_overlap and breakout_has_signal and not bb_has_signal and not tbh_has_signal))
 
-// SWING signals: Only blocked by swing being in trade (independent from other strategies)
-swing_signal_allowed = enable_swing_strategy and not swing_in_trade and not isSwingEntryBlocked() and isSwingStartTimeValid()
+// SWING signals: Use final signals that include all filters (squeeze, lime/red, bias, overlap, etc.)
+swing_buy_entry = swing_final_buy_signal and enable_swing_strategy
+swing_sell_entry = swing_final_sell_signal and enable_swing_strategy
 
-// Final signal determination
+// Final signal determination for other strategies
 bullish_breakout = bullish_breakout_base and breakout_signal_allowed
 bearish_breakdown = bearish_breakdown_base and breakout_signal_allowed
 bb_sell_signal = bb_sell_base and bb_signal_allowed
 bb_buy_signal = bb_buy_base and bb_signal_allowed
 tbh_buy_condition = tbh_buy_condition_base and tbh_signal_allowed
 tbh_sell_condition = tbh_sell_condition_base and tbh_signal_allowed
-swing_buy_entry = swing_hat_buy_signal and swing_signal_allowed and enable_swing_strategy
-swing_sell_entry = swing_hat_sell_signal and swing_signal_allowed and enable_swing_strategy
 
 // Update signal tracking flags
 if bullish_breakout or bearish_breakdown
@@ -1640,6 +1600,10 @@ if swing_buy_entry and not swing_in_trade and barstate.isconfirmed
     if not swing_use_star_based_exit
         swing_stop_loss := swing_entry_price - swing_fixed_sl_points
         swing_take_profit := swing_entry_price + swing_fixed_tp_points
+    
+    // Alert
+    if swing_enable_alerts
+        alert("Swing BUY Signal - Entry: " + str.tostring(normal_close, "#.##"), alert.freq_once_per_bar)
 
 if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
     swing_in_trade := true
@@ -1650,6 +1614,10 @@ if swing_sell_entry and not swing_in_trade and barstate.isconfirmed
     if not swing_use_star_based_exit
         swing_stop_loss := swing_entry_price + swing_fixed_sl_points
         swing_take_profit := swing_entry_price - swing_fixed_tp_points
+    
+    // Alert
+    if swing_enable_alerts
+        alert("Swing SELL Signal - Entry: " + str.tostring(normal_close, "#.##"), alert.freq_once_per_bar)
 
 // SWING ATR EXIT LOGIC
 // SWING ATR EXIT LOGIC
